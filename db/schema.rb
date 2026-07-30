@@ -38,6 +38,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_132749) do
     t.datetime "updated_at", null: false
     t.index ["api_token"], name: "index_users_on_api_token", unique: true
     t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["jti"], name: "index_users_on_jti", unique: true
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
 
