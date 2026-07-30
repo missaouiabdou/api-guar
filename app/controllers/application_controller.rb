@@ -1,34 +1,31 @@
 class ApplicationController < ActionController::API
   before_action :authenticate_user!
 
+  rescue_from ActiveRecord::RecordNotFound, with: :not_found
+  rescue_from ActionController::ParameterMissing, with: :bad_request
+  rescue_from ActiveRecord::RecordInvalid, with: :unprocessable
+  rescue_from ActiveRecord::RecordNotSaved, with: :unprocessable
 
   private
 
-  def authenticate_user!
-    Rails.logger.info "=== AUTH FILTER EXECUTED ==="
-    Rails.logger.info "Headers: #{request.headers['Authorization'].inspect}"
-
-    token = request.headers['Authorization']&.split(' ')&.last
-    
-    if token.blank?
-      Rails.logger.info "=== DENYING ACCESS: TOKEN MISSING ==="
-      render json: { error: 'Unauthorized: Token missing' }, status: :unauthorized and return
-    end
-
-    @current_user = User.find_by(api_token: token)
-
-    Rails.logger.info "Token: #{token.inspect}"
-    Rails.logger.info "User found: #{@current_user.inspect}"
-
-    unless @current_user
-      Rails.logger.info "=== DENYING ACCESS: INVALID TOKEN ==="
-      render json: { error: 'Unauthorized: Invalid token' }, status: :unauthorized and return
-    end
-
-    Rails.logger.info "=== ACCESS GRANTED ==="
+  def not_found
+    render json: {
+      success: false,
+      error: "Resource not found"
+    }, status: :not_found
   end
 
-  def current_user
-    @current_user
+  def bad_request(exception)
+    render json: {
+      success: false,
+      error: exception.message
+    }, status: :bad_request
+  end
+
+  def unprocessable(exception)
+    render json: {
+      success: false,
+      errors: exception.record.errors.full_messages
+    }, status: :unprocessable_entity
   end
 end

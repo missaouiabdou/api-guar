@@ -1,3 +1,4 @@
+# app/controllers/api/v1/projects_controller.rb
 module Api
   module V1
     class ProjectsController < BaseController
@@ -39,8 +40,6 @@ module Api
 
       def set_project
         @project = current_user.projects.find(params[:id])
-      rescue ActiveRecord::RecordNotFound
-        render json: { error: "Project not found" }, status: :not_found
       end
 
       def project_params
