@@ -43,7 +43,7 @@ module Api
       end
 
       def project_params
-        params.require(:project).permit(:name, :description, :repository_url, :status)
+        params.require(:project).permit(:name, :description, :repository_url, :status, :github_repo)
       end
     end
   end
