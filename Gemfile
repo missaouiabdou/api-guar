@@ -18,7 +18,6 @@ gem 'rswag-ui'
 
 group :development, :test do
   gem 'rswag-specs'
-  gem 'dotenv-rails'
 end
 # Windows does not include zoneinfo files, so bundle the tzinfo-data gem
 gem "tzinfo-data", platforms: %i[ windows jruby ]

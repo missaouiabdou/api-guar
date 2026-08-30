@@ -1,8 +1,10 @@
 class Project < ApplicationRecord
   belongs_to :user
 
-  # NEW: Relations
-  has_many :scans, dependent: :destroy
+  # Relations
+  has_many :scans,             dependent: :destroy
+  has_many :repositories,      dependent: :nullify
+  has_many :security_policies, dependent: :destroy
 
   # Existing + New validations
   validates :name, presence: true, length: { minimum: 2, maximum: 100 }

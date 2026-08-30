@@ -10,9 +10,22 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_17_195328) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_26_120100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "policy_evaluations", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "evaluated_at", null: false
+    t.boolean "passed", default: false, null: false
+    t.bigint "scan_id", null: false
+    t.bigint "security_policy_id", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "violations", default: [], null: false
+    t.index ["scan_id", "security_policy_id"], name: "index_policy_evaluations_on_scan_and_policy", unique: true
+    t.index ["scan_id"], name: "index_policy_evaluations_on_scan_id"
+    t.index ["security_policy_id"], name: "index_policy_evaluations_on_security_policy_id"
+  end
 
   create_table "projects", force: :cascade do |t|
     t.boolean "active", default: true
@@ -31,6 +44,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_195328) do
     t.index ["user_id"], name: "index_projects_on_user_id"
   end
 
+  create_table "repositories", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.string "default_branch", default: "main"
+    t.string "external_id"
+    t.string "full_name", null: false
+    t.string "language"
+    t.jsonb "metadata", default: {}
+    t.string "name", null: false
+    t.bigint "project_id"
+    t.string "provider", default: "github", null: false
+    t.datetime "updated_at", null: false
+    t.string "url", null: false
+    t.bigint "user_id", null: false
+    t.index ["active"], name: "index_repositories_on_active"
+    t.index ["language"], name: "index_repositories_on_language"
+    t.index ["project_id"], name: "index_repositories_on_project_id"
+    t.index ["provider"], name: "index_repositories_on_provider"
+    t.index ["user_id", "full_name"], name: "index_repositories_on_user_id_and_full_name", unique: true
+    t.index ["user_id"], name: "index_repositories_on_user_id"
+  end
+
   create_table "scans", force: :cascade do |t|
     t.string "author_email"
     t.string "author_name"
@@ -43,22 +78,42 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_195328) do
     t.text "error_message"
     t.integer "high_count", default: 0
     t.integer "info_count", default: 0
+    t.jsonb "languages", default: []
     t.integer "low_count", default: 0
     t.integer "medium_count", default: 0
     t.jsonb "parsed_data"
     t.bigint "project_id", null: false
     t.jsonb "raw_payload"
+    t.bigint "repository_id"
     t.string "scan_id", null: false
     t.datetime "scanned_at"
+    t.string "scanner"
     t.string "source_type", null: false
     t.string "status", default: "pending"
     t.datetime "updated_at", null: false
     t.index ["commit_sha"], name: "index_scans_on_commit_sha"
     t.index ["project_id", "scan_id"], name: "index_scans_on_project_id_and_scan_id", unique: true
     t.index ["project_id"], name: "index_scans_on_project_id"
+    t.index ["repository_id"], name: "index_scans_on_repository_id"
     t.index ["scanned_at"], name: "index_scans_on_scanned_at"
+    t.index ["scanner"], name: "index_scans_on_scanner"
     t.index ["source_type"], name: "index_scans_on_source_type"
     t.index ["status"], name: "index_scans_on_status"
+  end
+
+  create_table "security_policies", force: :cascade do |t|
+    t.boolean "block_on_failure", default: false, null: false
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.boolean "enabled", default: true, null: false
+    t.integer "maximum_critical", default: 0, null: false
+    t.integer "maximum_high", default: 5, null: false
+    t.integer "minimum_security_score", default: 70, null: false
+    t.string "name", null: false
+    t.bigint "project_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["enabled"], name: "index_security_policies_on_enabled"
+    t.index ["project_id"], name: "index_security_policies_on_project_id"
   end
 
   create_table "users", force: :cascade do |t|
@@ -88,13 +143,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_195328) do
     t.integer "line"
     t.text "link"
     t.jsonb "location", default: {}
+    t.string "location_class"
+    t.string "location_method"
     t.string "message", null: false
+    t.text "reason"
+    t.datetime "resolved_at"
     t.bigint "scan_id", null: false
+    t.string "scan_type", default: "sast", null: false
+    t.string "scanner", default: "brakeman"
+    t.string "severity", default: "info"
+    t.string "status", default: "open", null: false
     t.datetime "updated_at", null: false
     t.string "user_input"
     t.integer "warning_code"
     t.string "warning_type", null: false
+    t.index ["confidence"], name: "index_vulnerabilities_on_confidence"
+    t.index ["scan_id", "fingerprint"], name: "index_vulnerabilities_on_scan_id_and_fingerprint", unique: true
     t.index ["scan_id"], name: "index_vulnerabilities_on_scan_id"
+    t.index ["scan_type"], name: "index_vulnerabilities_on_scan_type"
+    t.index ["scanner"], name: "index_vulnerabilities_on_scanner"
+    t.index ["severity"], name: "index_vulnerabilities_on_severity"
+    t.index ["status"], name: "index_vulnerabilities_on_status"
+    t.index ["warning_type"], name: "index_vulnerabilities_on_warning_type"
   end
 
   create_table "webhook_events", force: :cascade do |t|
@@ -121,7 +191,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_195328) do
     t.index ["status"], name: "index_webhook_events_on_status"
   end
 
+  add_foreign_key "policy_evaluations", "scans"
+  add_foreign_key "policy_evaluations", "security_policies"
   add_foreign_key "projects", "users"
+  add_foreign_key "repositories", "projects"
+  add_foreign_key "repositories", "users"
   add_foreign_key "scans", "projects"
+  add_foreign_key "scans", "repositories"
+  add_foreign_key "security_policies", "projects"
   add_foreign_key "vulnerabilities", "scans"
 end

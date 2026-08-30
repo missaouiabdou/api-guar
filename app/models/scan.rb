@@ -1,6 +1,8 @@
 class Scan < ApplicationRecord
   belongs_to :project
-  has_one :webhook_event
+  has_one    :webhook_event
+  has_many   :vulnerabilities,     dependent: :destroy
+  has_many   :policy_evaluations,  dependent: :destroy
 
   validates :scan_id, presence: true, uniqueness: { scope: :project_id }
   validates :source_type, presence: true, inclusion: {

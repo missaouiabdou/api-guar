@@ -8,6 +8,7 @@ class User < ApplicationRecord
          :jwt_authenticatable, jwt_revocation_strategy: self
 
   has_many :projects, dependent: :destroy
+  has_many :repositories, dependent: :destroy
 
   before_create :generate_jti
 

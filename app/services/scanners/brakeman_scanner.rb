@@ -3,47 +3,26 @@ require 'open3'
 require 'json'
 
 module Scanners
-  class BrakemanScanner
-    BRAKEMAN_TIMEOUT = 300 # 5 minutes
+  class BrakemanScanner < BaseScanner
+    BRAKEMAN_TIMEOUT = 300
 
-    def initialize(scan)
-      @scan = scan
+    def scanner_name
+      "brakeman"
     end
 
-    def call
-      Rails.logger.info "🔍 Starting Brakeman scan for project=#{scan.project.github_repo}, sha=#{scan.commit_sha[0,7]}"
+    def supported?(repo_path)
+      File.exist?(File.join(repo_path, 'Gemfile')) &&
+        File.exist?(File.join(repo_path, 'config', 'application.rb'))
+    end
 
-      # Step 1: Download repo to temp dir
-      json_output = ::Scans::RepositoryCloner.new(scan).call do |repo_path|
-        # Step 2: Check it's a Rails app
-        unless rails_app?(repo_path)
-          Rails.logger.info "⚠️ Not a Rails app — skipping Brakeman (#{repo_path})"
-          next empty_result("Repository is not a Rails app — Brakeman skipped")
-        end
-
-        # Step 3: Run Brakeman on the cloned repo
-        run_brakeman(repo_path)
-      end
-
-      # Step 4: Parse JSON
-      parse_warnings(json_output)
-    rescue StandardError => e
-      Rails.logger.error "❌ BrakemanScanner failed: #{e.class} - #{e.message}"
-      raise
+    def scan(repo_path)
+      json = run_brakeman(repo_path)
+      build_result(json)
     end
 
     private
 
-    attr_reader :scan
-
-    def rails_app?(path)
-      File.exist?(File.join(path, 'Gemfile')) &&
-        File.exist?(File.join(path, 'config', 'application.rb'))
-    end
-
     def run_brakeman(repo_path)
-      # ✅ Sal7i: remove --no-parallel flag (ma kay3rrech Brakeman 8.0.5)
-      # Process.fork warning machi blocking — Brakeman kayt3awd l sequential auto
       cmd = [
         'brakeman',
         '-q',
@@ -55,7 +34,6 @@ module Scanners
       ]
 
       Rails.logger.info "🔍 Running: #{cmd.join(' ')}"
-
       stdout, stderr, status = Open3.capture3(*cmd)
 
       unless status.success? || stdout.strip.start_with?('{')
@@ -65,37 +43,67 @@ module Scanners
       JSON.parse(stdout)
     end
 
-    def parse_warnings(json)
+    # Convert Brakeman JSON → ScanResult
+    def build_result(json)
       warnings = json['warnings'] || []
-      scan_info = json['scan_info'] || {}
 
-      counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 }
+      vulns = warnings.map { |w| build_vulnerability(w) }
 
-      warnings.each do |w|
-        # ✅ FIX: confidence kayn STRING ("High"/"Medium"/"Weak")
-        confidence = w['confidence'].to_s.downcase
+      Rails.logger.info "📊 Brakeman: #{vulns.size} warnings " \
+                        "(c=#{count(vulns, 'critical')}, h=#{count(vulns, 'high')}, " \
+                        "m=#{count(vulns, 'medium')}, l=#{count(vulns, 'low')})"
 
-        case confidence
-        when 'high'   then counts[:high] += 1
-        when 'medium' then counts[:medium] += 1
-        when 'weak'   then counts[:low] += 1
-        end
-      end
-
-      counts[:info] = warnings.size
-
-      Rails.logger.info "📊 Brakeman found #{warnings.size} warnings " \
-                          "(h=#{counts[:high]}, m=#{counts[:medium]}, l=#{counts[:low]})"
-
-      counts.merge(raw_report: json)
+      ScanResult.new(
+        scanner:         scanner_name,
+        scan_type:       scan_type,
+        languages:       ['ruby'],
+        vulnerabilities: vulns,
+        raw_output:      json,
+        scan_info:       json['scan_info'] || {}
+      )
     end
 
-    def empty_result(message)
-      {
-        critical: 0, high: 0, medium: 0, low: 0, info: 0,
-        note: message,
-        raw_report: { 'note' => message, 'warnings' => [] }
-      }
+    def build_vulnerability(w)
+      ScanResult::Vulnerability.new(
+        warning_type:  w['warning_type'].to_s,
+        message:       w['message'].to_s.presence || 'No message',
+        severity:      map_severity(w),
+        confidence:    normalize_confidence(w['confidence']),
+        file:          clean_path(w['file'].to_s),
+        line:          w['line'].is_a?(Integer) ? w['line'] : nil,
+        cwe:           Array(w['cwe_id']),
+        code:          w['code'].to_s,
+        user_input:    w['user_input'].to_s,
+        fingerprint:   w['fingerprint'].presence || generate_fingerprint(w['warning_type'], w['file'], w['line'], w['check_name']),
+        check_name:    w['check_name'].to_s,
+        warning_code:  w['warning_code'].is_a?(Integer) ? w['warning_code'] : nil,
+        location:      w['location'].is_a?(Hash) ? w['location'] : {},
+        scanner:       scanner_name,
+        scan_type:     scan_type
+      )
+    end
+
+    def map_severity(w)
+      ::Scans::VulnerabilityPersister::SEVERITY_MAP[w['warning_type'].to_s] ||
+        case w['confidence'].to_s.downcase
+        when 'high'   then 'high'
+        when 'medium' then 'medium'
+        when 'weak'   then 'low'
+        else               'info'
+        end
+    end
+
+    def normalize_confidence(raw)
+      case raw.to_s.downcase
+      when 'high'         then 'high'
+      when 'medium'       then 'medium'
+      when 'weak', 'low'  then 'low'
+      else                     'low'
+      end
+    end
+
+    def count(vulns, severity)
+      vulns.count { |v| v.severity == severity }
     end
   end
 end
