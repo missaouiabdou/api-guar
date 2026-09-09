@@ -113,6 +113,7 @@
     <orderEntry type="library" scope="PROVIDED" name="raabro (v1.5.0, ruby-3.4.10-p104) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="racc (v1.8.1, ruby-3.4.10-p104) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="rack (v3.2.6, ruby-3.4.10-p104) [gem]" level="application" />
+    <orderEntry type="library" scope="PROVIDED" name="rack-attack (v6.8.0, ruby-3.4.10-p104) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="rack-cors (v3.0.0, ruby-3.4.10-p104) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="rack-session (v2.1.2, ruby-3.4.10-p104) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="rack-test (v2.2.0, ruby-3.4.10-p104) [gem]" level="application" />
@@ -260,6 +261,7 @@
       <value>file://$MODULE_DIR$/public/stylesheets</value>
     </entry>
     <entry key="test/mailers/previews">
+      <value>file://$MODULE_DIR$/spec/mailers/previews</value>
       <value>file://$MODULE_DIR$/test/mailers/previews</value>
       <value>file://$MODULE_DIR$/test/mailers/previews</value>
     </entry>

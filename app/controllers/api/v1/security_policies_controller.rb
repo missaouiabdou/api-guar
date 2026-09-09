@@ -35,6 +35,13 @@ module Api
         policy = @project.security_policies.new(policy_params)
 
         if policy.save
+          AuditService.log(
+            actor:         current_user,
+            action:        "policy_created",
+            resource_type: "SecurityPolicy",
+            resource_id:   policy.id,
+            metadata:      { name: policy.name, project_id: @project.id }
+          )
           render json: { data: serialize(policy) }, status: :created
         else
           render json: { errors: policy.errors.full_messages }, status: :unprocessable_entity
@@ -49,6 +56,13 @@ module Api
       # PATCH /api/v1/security_policies/:id
       def update
         if @policy.update(policy_params)
+          AuditService.log(
+            actor:         current_user,
+            action:        "policy_updated",
+            resource_type: "SecurityPolicy",
+            resource_id:   @policy.id,
+            metadata:      { name: @policy.name }
+          )
           render json: { data: serialize(@policy) }
         else
           render json: { errors: @policy.errors.full_messages }, status: :unprocessable_entity
@@ -57,6 +71,13 @@ module Api
 
       # DELETE /api/v1/security_policies/:id
       def destroy
+        AuditService.log(
+          actor:         current_user,
+          action:        "policy_deleted",
+          resource_type: "SecurityPolicy",
+          resource_id:   @policy.id,
+          metadata:      { name: @policy.name }
+        )
         @policy.destroy
         head :no_content
       end
@@ -91,6 +112,8 @@ module Api
           :minimum_security_score,
           :maximum_critical,
           :maximum_high,
+          :fail_on_secrets,
+          :fail_on_regressions,
           :enabled,
           :block_on_failure
         )
@@ -107,6 +130,8 @@ module Api
           minimum_security_score: policy.minimum_security_score,
           maximum_critical:       policy.maximum_critical,
           maximum_high:           policy.maximum_high,
+          fail_on_secrets:        policy.fail_on_secrets,
+          fail_on_regressions:    policy.fail_on_regressions,
           enabled:                policy.enabled,
           block_on_failure:       policy.block_on_failure,
           created_at:             policy.created_at,

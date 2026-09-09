@@ -106,5 +106,34 @@ RSpec.describe Security::PolicyEvaluator do
         }.not_to change { PolicyEvaluation.count }
       end
     end
+
+    context 'when fail_on_secrets is enabled' do
+      let(:secret_policy) { create(:security_policy, project: project, fail_on_secrets: true) }
+
+      it 'reports a violation when active secrets are detected' do
+        create(:vulnerability, scan: scan, scan_type: 'secret', status: 'open')
+        result = described_class.call(scan: scan, policy: secret_policy)
+        expect(result[:passed]).to be(false)
+        expect(result[:violations].map { |v| v[:rule] }).to include('fail_on_secrets')
+      end
+
+      it 'passes when no active secrets exist' do
+        result = described_class.call(scan: scan, policy: secret_policy)
+        expect(result[:violations].map { |v| v[:rule] }).not_to include('fail_on_secrets')
+      end
+    end
+
+    context 'when fail_on_regressions is enabled' do
+      let(:regression_policy) { create(:security_policy, project: project, fail_on_regressions: true) }
+
+      it 'reports a violation when a security regression occurs' do
+        prev_scan = create(:scan, project: project, status: 'completed', completed_at: 2.hours.ago)
+        create(:vulnerability, scan: scan, severity: 'critical', status: 'open')
+
+        result = described_class.call(scan: scan, policy: regression_policy)
+        expect(result[:passed]).to be(false)
+        expect(result[:violations].map { |v| v[:rule] }).to include('fail_on_regressions')
+      end
+    end
   end
 end

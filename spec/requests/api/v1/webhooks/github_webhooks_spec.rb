@@ -20,11 +20,11 @@ RSpec.describe "Api::V1::Webhooks::Github", type: :request do
   end
 
   before do
-    allow_any_instance_of(Scans::Scanners::BrakemanScanner).to receive(:call).and_return(
+    allow_any_instance_of(Scans::Executor).to receive(:call).and_return(
       {
-        raw_payload: { "warnings" => [] },
-        parsed_data: { "warnings" => [] },
-        severities: { "critical" => 0, "high" => 0, "medium" => 0, "low" => 0, "info" => 0 }
+        critical: 0, high: 0, medium: 0, low: 0, info: 0,
+        languages: ["ruby"], scanner: "brakeman", raw_report: {},
+        scan_results: []
       }
     )
   end

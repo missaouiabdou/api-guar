@@ -147,7 +147,13 @@ module Scanners
         cwe:           cwe,
         code:          meta['lines'].to_s,
         user_input:    nil,
-        fingerprint:   generate_fingerprint(rule, file, line),
+        fingerprint:   generate_fingerprint(
+                         scanner: scanner_name,
+                         rule_id:  rule,
+                         file:     file,
+                         code:     meta['lines'],
+                         line:     line
+                       ),
         check_name:    rule,
         warning_code:  nil,
         location:      {},

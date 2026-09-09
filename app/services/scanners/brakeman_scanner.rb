@@ -6,6 +6,36 @@ module Scanners
   class BrakemanScanner < BaseScanner
     BRAKEMAN_TIMEOUT = 300
 
+    # Brakeman warning_type → GuardRail severity
+    SEVERITY_MAP = {
+      # Critical
+      "Remote Code Execution"                        => "critical",
+      "Command Injection"                            => "critical",
+      "Dangerous Eval"                               => "critical",
+      "Deserialization of User Input"                => "critical",
+      "Remote Code Execution (Dynamic Render Path)"  => "critical",
+      # High
+      "SQL Injection"                                => "high",
+      "Cross-Site Scripting"                         => "high",
+      "Authentication"                               => "high",
+      "Mass Assignment"                              => "high",
+      "Redirect"                                     => "high",
+      "Session Fixation"                             => "high",
+      "Server-Side Request Forgery"                  => "high",
+      # Medium
+      "Path Traversal"                               => "medium",
+      "File Access"                                  => "medium",
+      "Directory Traversal"                          => "medium",
+      "Information Disclosure"                       => "medium",
+      "CSRF"                                         => "medium",
+      "Weak Cryptography"                            => "medium",
+      # Low
+      "Dynamic Render Path"                          => "low",
+      "Format Validation"                            => "low",
+      "Regex Injection"                              => "low",
+      "Template Injection"                           => "low"
+    }.freeze
+
     def scanner_name
       "brakeman"
     end
@@ -74,7 +104,13 @@ module Scanners
         cwe:           Array(w['cwe_id']),
         code:          w['code'].to_s,
         user_input:    w['user_input'].to_s,
-        fingerprint:   w['fingerprint'].presence || generate_fingerprint(w['warning_type'], w['file'], w['line'], w['check_name']),
+        fingerprint:   generate_fingerprint(
+                         scanner: scanner_name,
+                         rule_id:  w['check_name'].to_s,
+                         file:     clean_path(w['file'].to_s),
+                         code:     w['code'],
+                         line:     w['line']
+                       ),
         check_name:    w['check_name'].to_s,
         warning_code:  w['warning_code'].is_a?(Integer) ? w['warning_code'] : nil,
         location:      w['location'].is_a?(Hash) ? w['location'] : {},
@@ -84,7 +120,7 @@ module Scanners
     end
 
     def map_severity(w)
-      ::Scans::VulnerabilityPersister::SEVERITY_MAP[w['warning_type'].to_s] ||
+      SEVERITY_MAP[w['warning_type'].to_s] ||
         case w['confidence'].to_s.downcase
         when 'high'   then 'high'
         when 'medium' then 'medium'

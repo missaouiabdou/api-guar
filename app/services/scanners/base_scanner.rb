@@ -59,7 +59,7 @@ module Scanners
 
     # Type of scan performed — override in subclasses for non-SAST scanners
     def scan_type
-      'sast'
+      "sast"
     end
 
     private
@@ -92,8 +92,29 @@ module Scanners
       raw_path.to_s
     end
 
-    def generate_fingerprint(*parts)
-      Digest::SHA256.hexdigest(parts.join("-"))
+    # GR-201 — Stable Fingerprint Algorithm (v1)
+    #
+    # Formula:
+    #   SHA256( "#{scanner}|#{rule_id}|#{normalized_relative_path}|#{content}" )
+    #
+    # Identifiers:
+    #   - scanner:    scanner name (e.g. "brakeman", "semgrep")
+    #   - rule_id:    check/rule identifier (e.g. "dangerous_eval", "ruby.lang.security...")
+    #   - file:       normalized relative file path within repository
+    #   - content:    normalized code snippet (stripped, whitespace collapsed).
+    #                 Falls back to "line:#{line}" only when code is absent (e.g. SCA).
+    #
+    # Stability Guarantees:
+    #   - Line movement: developer inserting/deleting lines does NOT change fingerprint
+    #   - Whitespace: reformatted code preserves fingerprint
+    #   - Semantic changes: modifying the actual vulnerable expression changes fingerprint
+    def generate_fingerprint(scanner:, rule_id:, file:, code: nil, line: nil)
+      content = normalize_code(code).presence || "line:#{line}"
+      Digest::SHA256.hexdigest("#{scanner}|#{rule_id}|#{file}|#{content}")
+    end
+
+    def normalize_code(code)
+      code.to_s.strip.gsub(/\s+/, " ")
     end
   end
 end

@@ -10,15 +10,16 @@ module Scans
 
       result = Scans::Executor.new(scan).call
 
-      # Persist vulnerability records from all scanners
-      persist_vulnerabilities(result[:scan_results])
+      # GR-202 — Persist findings, carrying triage states (ignored/resolved)
+      # forward from the previous scan instead of wiping history.
+      counts = Scans::VulnerabilitySync.call(scan, result[:scan_results] || [])
 
       scan.update!(
-        critical_count: result[:critical],
-        high_count:     result[:high],
-        medium_count:   result[:medium],
-        low_count:      result[:low],
-        info_count:     result[:info],
+        critical_count: counts["critical"],
+        high_count:     counts["high"],
+        medium_count:   counts["medium"],
+        low_count:      counts["low"],
+        info_count:     counts["info"],
         languages:      result[:languages] || [],
         scanner:        result[:scanner],
         parsed_data:    result[:raw_report],
@@ -31,10 +32,13 @@ module Scans
       # Non-blocking: failures are logged inside PolicyRunner, never crash the scan.
       Security::PolicyRunner.call(scan)
 
+      # Priority 6 — Post PR / Commit status feedback to GitHub
+      Github::StatusPoster.call(scan)
+
       Rails.logger.info(
         "✅ Scan #{scan.id} completed " \
-        "(c=#{result[:critical]}, h=#{result[:high]}, " \
-        "m=#{result[:medium]}, l=#{result[:low]}, i=#{result[:info]}) " \
+        "(c=#{counts['critical']}, h=#{counts['high']}, " \
+        "m=#{counts['medium']}, l=#{counts['low']}, i=#{counts['info']}) " \
         "lang=#{result[:languages]&.join(',')} scanner=#{result[:scanner]}"
       )
     rescue StandardError => e
@@ -46,42 +50,5 @@ module Scans
     private
 
     attr_reader :scan
-
-    def persist_vulnerabilities(scan_results)
-      return if scan_results.nil? || scan_results.empty?
-
-      # Destroy once — then each persister inserts (no double-destroy)
-      scan.vulnerabilities.destroy_all
-
-      scan_results.each do |scan_result|
-        # Re-use persister but skip the destroy_all since we already did it
-        scan_result.vulnerabilities.each do |v|
-          scan.vulnerabilities.create!(
-            warning_type:    v.warning_type,
-            message:         v.message.presence || 'No message',
-            confidence:      v.confidence.to_s,
-            severity:        v.severity,
-            file:            v.file.to_s,
-            line:            v.line,
-            cwe_id:          Array(v.cwe),
-            code:            v.code.to_s,
-            user_input:      v.user_input.to_s,
-            location:        v.location.is_a?(Hash) ? v.location : {},
-            location_class:  v.location.is_a?(Hash) ? v.location['class'].to_s : '',
-            location_method: v.location.is_a?(Hash) ? v.location['method'].to_s : '',
-            fingerprint:     v.fingerprint,
-            check_name:      v.check_name.to_s,
-            warning_code:    v.warning_code,
-            scanner:         v.scanner.to_s,
-            scan_type:       v.scan_type.to_s.presence || scan_result.scan_type || 'sast',
-            status:          'open'
-          )
-        rescue ActiveRecord::RecordInvalid => e
-          Rails.logger.warn "⚠️ Skipped vulnerability: #{e.message}"
-        end
-      end
-
-      Rails.logger.info "🛡️ Persisted #{scan.vulnerabilities.count} total vulnerabilities for Scan ##{scan.id}"
-    end
   end
 end

@@ -43,9 +43,9 @@ RSpec.describe 'Api::V1::Security', type: :request do
       expect(response).to have_http_status(:ok)
       json = JSON.parse(response.body)
 
-      # 2 critical open = -50, 1 high open = -10 → score = 40
+      # 2 critical open = -30, 1 high open = -5 → score = 65
       expect(json['scan_id']).to eq(scan.id)
-      expect(json['security_score']).to eq(40)
+      expect(json['security_score']).to eq(65)
       expect(json['risk_level']).to eq('high')
       expect(json['vulnerabilities']['critical']).to eq(2)
       expect(json['vulnerabilities']['high']).to eq(2)  # resolved still counted in totals

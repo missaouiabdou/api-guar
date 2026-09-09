@@ -1,7 +1,11 @@
 import axios from 'axios'
 
+const baseURL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL.replace(/\/+$/, '')}/api/v1`
+  : '/api/v1'
+
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL,
   headers: { 'Content-Type': 'application/json' }
 })
 
@@ -28,6 +32,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // Clear token on authentication failure
       localStorage.removeItem('guardrail_token')
+      localStorage.removeItem('guardrail_user')
     }
     return Promise.reject(error)
   }
@@ -72,16 +77,48 @@ export const fetchProjects = () => api.get('/projects')
 export const fetchProject = (id) => api.get(`/projects/${id}`)
 export const createProject = (data) => api.post('/projects', { project: data })
 
-// ── Scans Endpoints ─────────────────────────────────────────────────────────
-export const fetchScans = () => api.get('/scans')
+// ── Scans Endpoints (Priority 3 & 4) ────────────────────────────────────────
+export const fetchScans = (params) => api.get('/scans', { params })
 export const fetchScan = (id) => api.get(`/scans/${id}`)
+export const triggerScan = (projectIdOrData, extraData = {}) => {
+  if (typeof projectIdOrData === 'object') {
+    return api.post('/scans', { scan: projectIdOrData })
+  }
+  return api.post('/scans', { scan: { project_id: projectIdOrData, ...extraData } })
+}
 
-// ── Security & Score Endpoints ──────────────────────────────────────────────
+// ── Security & Score Endpoints (Priority 5) ─────────────────────────────────
 export const fetchScanSecurity = (scanId) => api.get(`/scans/${scanId}/security_summary`)
 export const fetchProjectSecurity = (projectId) => api.get(`/projects/${projectId}/security`)
+export const fetchScanGate = (scanId) => api.get(`/scans/${scanId}/gate`)
 
-// ── Vulnerabilities Endpoints ───────────────────────────────────────────────
+// ── Security Policies Endpoints (Priority 7) ────────────────────────────────
+export const fetchSecurityPolicies = (projectId) => api.get(`/projects/${projectId}/security_policies`)
+export const createSecurityPolicy = (projectId, data) => api.post(`/projects/${projectId}/security_policies`, { security_policy: data })
+export const updateSecurityPolicy = (id, data) => api.patch(`/security_policies/${id}`, { security_policy: data })
+export const deleteSecurityPolicy = (id) => api.delete(`/security_policies/${id}`)
+
+// ── Vulnerabilities Endpoints (Priority 2) ──────────────────────────────────
 export const fetchVulnerabilities = (params) => api.get('/vulnerabilities', { params })
 export const fetchVulnerability = (id) => api.get(`/vulnerabilities/${id}`)
 export const fetchScanVulnerabilities = (scanId, params) => api.get(`/scans/${scanId}/vulnerabilities`, { params })
 export const updateVulnerability = (id, data) => api.patch(`/vulnerabilities/${id}`, { vulnerability: data })
+
+// ── Audit Logs Endpoints (Priority 8) ───────────────────────────────────────
+export const fetchAuditLogs = (params) => api.get('/audit_logs', { params })
+
+// ── Health Endpoint (Priority 10) ───────────────────────────────────────────
+export const fetchHealth = () => api.get('/health')
+
+// ── Webhook Events Endpoints ────────────────────────────────────────────────
+export const fetchWebhookEvents = (params) => api.get('/webhook_events', { params })
+export const fetchWebhookEvent = (id) => api.get(`/webhook_events/${id}`)
+
+// ── Webhook Management Endpoints ────────────────────────────────────────────
+export const fetchWebhooks = () => api.get('/webhooks')
+export const createWebhook = (data) => api.post('/webhooks', data)
+export const deleteWebhook = (id) => api.delete(`/webhooks/${id}`)
+
+// ── User Profile Endpoints ──────────────────────────────────────────────────
+export const fetchProfile = () => api.get('/profile')
+export const updateProfile = (data) => api.patch('/profile', { profile: data })

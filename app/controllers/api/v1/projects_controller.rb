@@ -5,9 +5,12 @@ module Api
       before_action :set_project, only: [:show, :update, :destroy]
 
       def index
-        @projects = current_user.projects.includes(:scans)
+        scope = current_user.projects.includes(:scans).order(created_at: :desc)
+        projects, pagination = paginate(scope)
+
         render json: {
-          data: @projects.map { |p| serialize_project(p) }
+          data:       projects.map { |p| serialize_project(p) },
+          pagination: pagination
         }
       end
 
@@ -19,6 +22,13 @@ module Api
         @project = current_user.projects.build(project_params)
 
         if @project.save
+          AuditService.log(
+            actor: current_user,
+            action: "project_created",
+            resource_type: "Project",
+            resource_id: @project.id,
+            metadata: { name: @project.name, repo: @project.github_repo }
+          )
           render json: @project, status: :created
         else
           render json: { errors: @project.errors.full_messages }, status: :unprocessable_entity
@@ -27,6 +37,13 @@ module Api
 
       def update
         if @project.update(project_params)
+          AuditService.log(
+            actor: current_user,
+            action: "project_updated",
+            resource_type: "Project",
+            resource_id: @project.id,
+            metadata: { name: @project.name }
+          )
           render json: @project
         else
           render json: { errors: @project.errors.full_messages }, status: :unprocessable_entity
@@ -34,6 +51,13 @@ module Api
       end
 
       def destroy
+        AuditService.log(
+          actor: current_user,
+          action: "project_deleted",
+          resource_type: "Project",
+          resource_id: @project.id,
+          metadata: { name: @project.name }
+        )
         @project.destroy
         head :no_content
       end

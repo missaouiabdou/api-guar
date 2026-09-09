@@ -1,0 +1,90 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\geometry{margin=2cm}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+
+\definecolor{primary}{RGB}{37, 99, 235}
+\definecolor{dark}{RGB}{15, 23, 42}
+\definecolor{lightbg}{RGB}{248, 250, 252}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=primary,
+    urlcolor=primary
+}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    backgroundcolor=\color{lightbg},
+    frame=single,
+    breaklines=true
+}
+
+\title{\textbf{\Huge 🛡️ GuardRail DevSecOps}\\[0.3em] \Large Rapport Technique d'Ingénierie — Phases 1 \& 2\\Durcissement Sécurité \& Cycle de Vie Persistant des Vulnérabilités}
+\date{4 Septembre 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Ce rapport détaille les réalisations techniques des Phases 1 et 2 sur la plateforme DevSecOps \textbf{GuardRail} (Rails 8 API-only, PostgreSQL, SolidQueue, Brakeman, Semgrep). L'intégralité du socle d'authentification, de contrôle d'accès multi-tenant (IDOR/BOLA), de limitation de débit (Rack::Attack), de calcul d'empreinte stable SHA-256 et du cycle de vie persistant des vulnérabilités a été validée avec un taux de réussite de \textbf{100\% (138 tests passés, 0 échec)}.
+\end{abstract}
+
+\section{Phase 1 — Durcissement de la Sécurité}
+
+\subsection{Isolation Multi-Tenant \& Prévention IDOR (GR-101 / GR-102)}
+L'audit complet des 12 contrôleurs a confirmé l'absence de contournement d'authentification (\texttt{User.first}, \texttt{current\_user ||}). Une vulnérabilité critique d'injection de clé étrangère a été neutralisée dans \texttt{RepositoriesController} via le filtre \texttt{validate\_project\_ownership}, interdisant l'association d'un dépôt à un projet d'un autre utilisateur.
+
+\subsection{Limitation de Débit \& Anti-DDoS (GR-103)}
+Intégration de \texttt{rack-attack} avec seuils stricts renvoyant un code HTTP 429 et l'entête standard \texttt{Retry-After} :
+\begin{itemize}
+    \item \texttt{POST /api/v1/login} : 5 req / 20s (anti brute-force)
+    \item \texttt{POST /api/v1/signup} : 3 req / 60s (anti création de comptes)
+    \item \texttt{POST /api/v1/webhooks/github} : 30 req / 60s (anti-flood)
+    \item \texttt{ALL /api/*} : 100 req / 60s (anti-DDoS global)
+\end{itemize}
+
+\subsection{Correction de la Suite de Tests \& Tests de Sécurité (GR-104)}
+Résolution de 16 régressions préexistantes et ajout de specs d'isolation validant le rejet systématique (HTTP 422) des tentatives d'injection de clé étrangère.
+
+\subsection{Pagination SQL Native (GR-105)}
+Module \texttt{Paginatable} validé sur toutes les collections avec requêtes \texttt{LIMIT}/\texttt{OFFSET} et métadonnées complètes.
+
+\section{Phase 2 — Persistance \& Cycle de Vie des Vulnérabilités}
+
+\subsection{Algorithme d'Empreinte Stable (GR-201)}
+L'empreinte ne dépend plus du numéro de ligne absolu, évitant les fausses alertes lorsqu'un développeur ajoute du code :
+\begin{equation}
+\text{Fingerprint} = \text{SHA256}(\text{scanner} \parallel \text{"|"} \parallel \text{rule\_id} \parallel \text{"|"} \parallel \text{file} \parallel \text{"|"} \parallel \text{normalized\_code})
+\end{equation}
+
+\subsection{Cycle de Vie Immuable \& Détection des Réouvertures (GR-202 / GR-203)}
+Suppression totale de \texttt{destroy\_all} (0 occurrence dans le code). Les scans constituent des instantanés historiques immuables.
+\begin{itemize}
+    \item \textbf{OPEN} : Détectée pour la première fois.
+    \item \textbf{IGNORED} : Faux positif / risque accepté reporté automatiquement sans jamais être rouvert.
+    \item \textbf{RESOLVED} : Corrigée et archivée dans l'historique sans destruction.
+    \item \textbf{REOPENED} : Détectée à nouveau après avoir été résolue, avec horodatage \texttt{reopened\_at} et réactivation des pénalités de score.
+\end{itemize}
+
+\section{Résultats des Tests \& Métriques}
+\begin{itemize}
+    \item \textbf{RSpec} : 138 exemples exécutés, \textbf{0 échec}, 1 pending.
+    \item \textbf{RuboCop} : Code 100\% conforme aux standards Rails.
+    \item \textbf{Base de Données} : Contrainte d'unicité \texttt{(scan\_id, fingerprint)} validée.
+\end{itemize}
+
+\section{Prochaine Étape Recommandée (Phase 3)}
+Pipeline Multi-Scanner \& SCA : intégration de \texttt{bundler-audit}, \texttt{npm-audit} et \texttt{Gitleaks}.
+
+\end{document}

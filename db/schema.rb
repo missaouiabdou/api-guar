@@ -10,9 +10,23 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_26_120100) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_08_165000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "audit_logs", force: :cascade do |t|
+    t.string "action", null: false
+    t.string "actor_email"
+    t.bigint "actor_id"
+    t.datetime "created_at", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.string "resource_id"
+    t.string "resource_type", null: false
+    t.index ["action"], name: "index_audit_logs_on_action"
+    t.index ["actor_id"], name: "index_audit_logs_on_actor_id"
+    t.index ["created_at"], name: "index_audit_logs_on_created_at"
+    t.index ["resource_type"], name: "index_audit_logs_on_resource_type"
+  end
 
   create_table "policy_evaluations", force: :cascade do |t|
     t.datetime "created_at", null: false
@@ -106,6 +120,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_120100) do
     t.datetime "created_at", null: false
     t.text "description"
     t.boolean "enabled", default: true, null: false
+    t.boolean "fail_on_regressions", default: false, null: false
+    t.boolean "fail_on_secrets", default: false, null: false
     t.integer "maximum_critical", default: 0, null: false
     t.integer "maximum_high", default: 5, null: false
     t.integer "minimum_security_score", default: 70, null: false
@@ -121,11 +137,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_120100) do
     t.datetime "created_at", null: false
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
+    t.string "first_name", default: "Sarah"
+    t.string "job_title", default: "Platform Engineering Lead"
     t.string "jti"
+    t.string "last_name", default: "Chen"
     t.string "password_digest"
     t.datetime "remember_created_at"
     t.datetime "reset_password_sent_at"
     t.string "reset_password_token"
+    t.string "timezone", default: "America/New_York (UTC-5)"
     t.datetime "updated_at", null: false
     t.index ["api_token"], name: "index_users_on_api_token", unique: true
     t.index ["email"], name: "index_users_on_email", unique: true
@@ -147,6 +167,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_120100) do
     t.string "location_method"
     t.string "message", null: false
     t.text "reason"
+    t.datetime "reopened_at"
     t.datetime "resolved_at"
     t.bigint "scan_id", null: false
     t.string "scan_type", default: "sast", null: false

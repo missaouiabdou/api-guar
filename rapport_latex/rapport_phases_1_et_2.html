@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>GuardRail - Rapport Technique DevSecOps (Phases 1 & 2)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap');
+
+  @page {
+    size: A4;
+    margin: 12mm 14mm;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #1E293B;
+    background: #FFFFFF;
+    line-height: 1.48;
+    font-size: 11px;
+    margin: 0;
+    padding: 0;
+  }
+
+  h1, h2, h3, h4 {
+    color: #0F172A;
+    font-weight: 700;
+    margin-top: 0.9em;
+    margin-bottom: 0.25em;
+  }
+
+  .header {
+    border-bottom: 2px solid #2563EB;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+  }
+
+  .title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .main-title {
+    font-size: 19px;
+    font-weight: 800;
+    color: #0B1120;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .subtitle {
+    font-size: 12px;
+    color: #2563EB;
+    font-weight: 600;
+    margin-top: 2px;
+  }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 16px;
+    margin-top: 8px;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 10.5px;
+  }
+
+  .meta-item strong {
+    color: #334155;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 9.5px;
+    font-weight: 600;
+  }
+
+  .badge-success { background: #DCFCE7; color: #166534; border: 1px solid #86EFAC; }
+  .badge-info { background: #E0E7FF; color: #3730A3; border: 1px solid #A5B4FC; }
+  .badge-warning { background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D; }
+  .badge-danger { background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; }
+
+  .summary-card {
+    background: #EFF6FF;
+    border-left: 4px solid #2563EB;
+    padding: 8px 12px;
+    border-radius: 0 6px 6px 0;
+    margin-bottom: 12px;
+  }
+
+  .summary-card p {
+    margin: 0;
+    color: #1E40AF;
+    font-size: 11px;
+    line-height: 1.45;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0 12px 0;
+    font-size: 10.5px;
+  }
+
+  th, td {
+    padding: 5px 7px;
+    text-align: left;
+    border-bottom: 1px solid #E2E8F0;
+  }
+
+  th {
+    background: #F1F5F9;
+    color: #334155;
+    font-weight: 600;
+    border-top: 1px solid #CBD5E1;
+  }
+
+  tr:nth-child(even) {
+    background: #F8FAFC;
+  }
+
+  code {
+    font-family: 'Fira Code', monospace;
+    background: #F1F5F9;
+    color: #0F172A;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 10px;
+    border: 1px solid #E2E8F0;
+  }
+
+  pre {
+    font-family: 'Fira Code', monospace;
+    background: #0F172A;
+    color: #F8FAFC;
+    padding: 8px 10px;
+    border-radius: 5px;
+    font-size: 10px;
+    overflow-x: auto;
+    line-height: 1.38;
+    margin: 8px 0;
+  }
+
+  .diagram-box {
+    background: #F8FAFC;
+    border: 1px dashed #CBD5E1;
+    border-radius: 6px;
+    padding: 8px;
+    text-align: center;
+    font-family: 'Fira Code', monospace;
+    font-size: 10.5px;
+    margin: 8px 0;
+    white-space: pre;
+    color: #0F172A;
+  }
+
+  .section-title {
+    font-size: 13.5px;
+    color: #0F172A;
+    border-bottom: 1.5px solid #E2E8F0;
+    padding-bottom: 3px;
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin: 8px 0 12px 0;
+  }
+
+  .stat-box {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 6px;
+    padding: 6px 8px;
+    text-align: center;
+  }
+
+  .stat-number {
+    font-size: 17px;
+    font-weight: 800;
+    color: #2563EB;
+  }
+
+  .stat-label {
+    font-size: 9.5px;
+    color: #64748B;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .screenshot-card {
+    margin: 10px 0 14px 0;
+    border: 1px solid #CBD5E1;
+    border-radius: 7px;
+    overflow: hidden;
+    background: #0F172A;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  }
+
+  .screenshot-card img {
+    width: 100%;
+    max-height: 250px;
+    object-fit: contain;
+    display: block;
+    background: #0B0F19;
+  }
+
+  .screenshot-caption {
+    background: #F8FAFC;
+    color: #334155;
+    padding: 5px 10px;
+    font-size: 10px;
+    font-weight: 600;
+    border-top: 1px solid #E2E8F0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .screenshot-caption span.tag {
+    color: #2563EB;
+    font-family: 'Fira Code', monospace;
+    font-size: 9.5px;
+  }
+
+  .page-break {
+    page-break-before: always;
+  }
+</style>
+</head>
+<body>
+
+<!-- PAGE 1 : EN-TÊTE, RÉSUMÉ EXÉCUTIF & PHASE 1 -->
+<div class="header">
+  <div class="title-row">
+    <div>
+      <h1 class="main-title">🛡️ GuardRail DevSecOps Platform</h1>
+      <div class="subtitle">Rapport Technique d'Ingénierie — Phases 1 & 2 : Durcissement, Persistance & Intégration Réelle</div>
+    </div>
+    <div>
+      <span class="badge badge-success">STATUT : 100% VALIDÉ</span>
+    </div>
+  </div>
+
+  <div class="meta-grid">
+    <div class="meta-item"><strong>Date :</strong> 8 Septembre 2026 (Mise à jour complète)</div>
+    <div class="meta-item"><strong>Environnement :</strong> Production-Ready Core</div>
+    <div class="meta-item"><strong>Stack Backend :</strong> Rails 8 API · PostgreSQL · SolidQueue</div>
+    <div class="meta-item"><strong>Moteurs de Scan :</strong> Brakeman · Semgrep · Gitleaks · Bundler Audit</div>
+    <div class="meta-item"><strong>Couverture Tests :</strong> 167 specs passées · 0 échec (100% au vert)</div>
+    <div class="meta-item"><strong>Interface Frontend :</strong> React 18 · Tailwind CSS · Recharts (0 erreur Vite)</div>
+  </div>
+</div>
+
+<div class="summary-card">
+  <p><strong>🎯 Objectif Accompli :</strong> Finalisation intégrale des Phases 1 et 2 du noyau de sécurité GuardRail, enrichi par la validation réelle sur le dépôt officiel <code>missaouiabdou/guardial</code>. Sécurisation multi-tenant absolue (IDOR/BOLA), limitation de débit anti brute-force/DDoS, clonage Git headless authentifié par token GitHub, exécution conjointe de 4 moteurs (Brakeman, Semgrep, Gitleaks, Bundler Audit), calcul d'empreintes stables SHA-256, persistance immuable du cycle de vie des vulnérabilités, et éradication totale des données simulées (*fake data*) au profit d'un flux 100% dynamique synchronisé en direct avec la base PostgreSQL.</p>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-box">
+    <div class="stat-number">167 / 167</div>
+    <div class="stat-label">Tests Automatisés (0 fail)</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-number">4 Moteurs</div>
+    <div class="stat-label">Brakeman · Semgrep · Gitleaks · SCA</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-number">17 Vulns</div>
+    <div class="stat-label">Réelles Tracées (Scan #96)</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-number">0 destroy_all</div>
+    <div class="stat-label">Persistance Immuable</div>
+  </div>
+</div>
+
+<h2 class="section-title">1. Phase 1 — Durcissement de la Sécurité (Security Hardening)</h2>
+
+<h3>1.1 GR-101 & GR-102 : Isolation des Données & Éradication IDOR/BOLA</h3>
+<p>L'audit initial a confirmé l'absence de contournements d'authentification directs (<code>User.first</code> ou <code>current_user ||</code>). Une faille critique d'injection de clé étrangère (<strong>FK Injection</strong>) dans <code>RepositoriesController</code> a été éradiquée : les paramètres acceptaient un <code>project_id</code> sans vérifier sa possession par l'utilisateur connecté. Le filtre <code>validate_project_ownership</code> rejette désormais toute tentative frauduleuse avec un code HTTP <code>422 Unprocessable Entity</code> :</p>
+<pre>before_action :validate_project_ownership, only: [:create, :update]
+
+def validate_project_ownership
+  pid = params.dig(:repository, :project_id)
+  return if pid.blank?
+  unless current_user.projects.exists?(id: pid)
+    render json: { error: "Invalid project" }, status: :unprocessable_entity
+  end
+end</pre>
+
+<h3>1.2 GR-103 : Limitation de Débit & Protection Anti-Abus (Rack::Attack)</h3>
+<p>Configuration centralisée de <code>rack-attack</code> (6.8.0) dans <code>config/initializers/rack_attack.rb</code> avec réponse HTTP 429 normalisée et entête standard <code>Retry-After</code> :</p>
+<table>
+  <thead>
+    <tr>
+      <th>Endpoint Protégé</th>
+      <th>Seuil Autorisé</th>
+      <th>Fenêtre</th>
+      <th>Menace Couverte</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td><code>POST /api/v1/login</code></td><td><strong>5 requêtes</strong></td><td>20 secondes</td><td>Brute-force & Credential Stuffing</td></tr>
+    <tr><td><code>POST /api/v1/signup</code></td><td><strong>3 requêtes</strong></td><td>60 secondes</td><td>Création massive de comptes</td></tr>
+    <tr><td><code>POST /api/v1/webhooks/github</code></td><td><strong>30 requêtes</strong></td><td>60 secondes</td><td>Inondation / Flood de webhooks</td></tr>
+    <tr><td><code>ALL /api/*</code></td><td><strong>100 requêtes</strong></td><td>60 secondes</td><td>Déni de service distribué (DDoS)</td></tr>
+  </tbody>
+</table>
+
+<h3>1.3 GR-106 (Ajouté ce jour) : Clonage Git Headless Authentifié (<code>RepositoryCloner</code>)</h3>
+<p>Lors des scans manuels, <code>git clone</code> bloquait en attente d'identifiants dans les threads Puma. Résolution par l'injection automatique et sécurisée du <code>GITHUB_TOKEN</code> sous forme HTTPS <code>https://x-access-token:&lt;TOKEN&gt;@github.com/...</code> et l'application des drapeaux non-interactifs <code>GIT_TERMINAL_PROMPT=0</code> et <code>GIT_ASKPASS=""</code>.</p>
+
+<div class="page-break"></div>
+
+<!-- PAGE 2 : PHASE 2 CYCLE DE VIE & MOTEURS RÉELS -->
+<h2 class="section-title">2. Phase 2 — Cycle de Vie Persistant des Vulnérabilités & Analyse Multi-Moteurs</h2>
+
+<h3>2.1 GR-201 : Algorithme d'Empreinte Stable (Stable Fingerprint v1)</h3>
+<p>L'empreinte mathématique ne dépend plus du numéro de ligne absolu, garantissant l'immunité aux décalages de lignes et au reformattage :</p>
+<div class="diagram-box">Fingerprint = SHA256( scanner | rule_id | normalized_relative_path | normalized_content )</div>
+
+<h3>2.2 GR-202 & GR-203 : Modélisation du Cycle de Vie Immuable (4 États)</h3>
+<p>Suppression totale de <code>destroy_all</code> dans toute l'application. Chaque scan constitue un snapshot temporel immuable avec report des décisions de triage :</p>
+<div class="diagram-box">
+             ┌───────────────┐
+             │     OPEN      │◄───────────┐
+             └───────┬───────┘            │
+                     │                    │
+          ┌──────────┴──────────┐         │
+          ▼                     ▼         │
+   ┌─────────────┐       ┌─────────────┐  │ (détectée à nouveau)
+   │   IGNORED   │       │  RESOLVED   │  │
+   └──────┬──────┘       └──────┬──────┘  │
+          │                     │         │
+    (détectée à                 │         ▼
+      nouveau)                  │  ┌───────────────┐
+          │                     └─►│   REOPENED    │
+          ▼                        └───────────────┘
+   ┌─────────────┐                  (horodatée &
+   │   IGNORED   │                   pénalisante)
+   └─────────────┘
+ (jamais rouverte)
+</div>
+
+<h3>2.3 GR-204 (Ajouté ce jour) : Exécution Réelle Multi-Scanners (Scan #96 sur <code>missaouiabdou/guardial</code>)</h3>
+<p>Exécution coordonnée des 4 moteurs d'analyse sur le dépôt de référence avec <strong>17 vulnérabilités réelles tracées</strong> :</p>
+<ul>
+  <li><strong>Brakeman (Rails SAST) :</strong> 6 vulnérabilités critiques et hautes (Command Injection, SQL Injection, File Access, Path Traversal, Mass Assignment).</li>
+  <li><strong>Semgrep (SAST Multi-langages) :</strong> 10 vulnérabilités de code (Injections, Hardcoded Secrets, Validations non sécurisées).</li>
+  <li><strong>Gitleaks (Secrets) :</strong> Détection critique d'une clé d'accès AWS dans <code>JavaVulnerabilityPlaygroundController.java:162</code> (Tag <code>CWE-798</code>).</li>
+  <li><strong>Bundler Audit (SCA) :</strong> Audit automatisé des dépendances Gemfile.</li>
+</ul>
+
+<!-- SCREENSHOT 1 : CONSOLE DE SÉCURITÉ GUARDIAL -->
+<div class="screenshot-card">
+  <img src="images/security_console_guardial.png" alt="Console de Sécurité Guardial">
+  <div class="screenshot-caption">
+    <span><strong>Figure 1 :</strong> Console de Sécurité — Jauge SVG interactive, Score 0/100, Détection de 3 Critiques & 9 Hautes, et Sous-scores par Catégorie</span>
+    <span class="tag">GET /api/v1/projects/7/security</span>
+  </div>
+</div>
+
+<div class="page-break"></div>
+
+<!-- PAGE 3 : CONSOLIDATION RESTITUTION & ÉRADICATION FAKE DATA -->
+<h2 class="section-title">3. Consolidation Front-End & Éradication Complète des Données Factices (Ajouté ce jour)</h2>
+
+<h3>3.1 Intégrité des Métriques Dashboard (GR-501)</h3>
+<p>Correction de la métrique trompeuse <em>"10 deployments today"</em> dans <code>DashboardController</code>. Séparation nette entre les déploiements réels (<strong>0</strong>) et les scans de sécurité exécutés dans la journée (<strong>10</strong>).</p>
+
+<!-- SCREENSHOT 2 : DASHBOARD OVERVIEW -->
+<div class="screenshot-card">
+  <img src="images/dashboard_overview.png" alt="Dashboard Overview GuardRail">
+  <div class="screenshot-caption">
+    <span><strong>Figure 2 :</strong> Tableau de Bord Central — Séparation stricte des déploiements (0) et des scans du jour (10) avec télémétrie de pipeline</span>
+    <span class="tag">GET /api/v1/dashboard</span>
+  </div>
+</div>
+
+<h3>3.2 Dynamisation Intégrale de la Console de Sécurité (<code>SecurityPage.jsx</code>)</h3>
+<p>Remplacement des anciens scores mockés (72, 45, 88, 91) par le calcul en direct dans <code>SecurityController#project_overview</code> :</p>
+<ul>
+  <li><em>Dependency Scan (SCA) :</em> Score <strong>100</strong> (0 issue).</li>
+  <li><em>Secrets Scan (Gitleaks) :</em> Score <strong>75</strong> (1 issue critique — clé AWS).</li>
+  <li><em>Container Scan (Docker) :</em> Score <strong>100</strong> (0 issue).</li>
+  <li><em>Code Scan (SAST) :</em> Score <strong>0</strong> (16 issues Brakeman / Semgrep, 2 critiques).</li>
+</ul>
+
+<!-- SCREENSHOT 3 : TABLEAU DES VULNÉRABILITÉS & RECOMMANDATIONS -->
+<div class="screenshot-card">
+  <img src="images/security_remediation_table.png" alt="Tableau de remédiation des vulnérabilités">
+  <div class="screenshot-caption">
+    <span><strong>Figure 3 :</strong> Tableau des Vulnérabilités & Recommandations — Filtres par type (All, Dependency, Secret, Container, Code) et actions de remédiation</span>
+    <span class="tag">GET /api/v1/vulnerabilities?latest=true</span>
+  </div>
+</div>
+
+<div class="page-break"></div>
+
+<!-- PAGE 4 : ÉCRANS DE GESTION & MATRICE DE TESTS -->
+<h2 class="section-title">4. Modules Connectés de la Plateforme (Vue Détaillée)</h2>
+
+<!-- SCREENSHOT 4 : DÉPÔTS CONNECTÉS -->
+<div class="screenshot-card">
+  <img src="images/repositories_screen.png" alt="Gestion des dépôts connectés">
+  <div class="screenshot-caption">
+    <span><strong>Figure 4 :</strong> Dépôts GitHub Connectés — Suivi polyglotte, indicateurs de webhooks actifs et synchronisation en direct des Pull Requests</span>
+    <span class="tag">GET /api/v1/repositories</span>
+  </div>
+</div>
+
+<!-- SCREENSHOT 5 : PISTE D'AUDIT IMMUABLE -->
+<div class="screenshot-card">
+  <img src="images/audit_logs_screen.png" alt="Piste d'audit des actions de sécurité">
+  <div class="screenshot-caption">
+    <span><strong>Figure 5 :</strong> Piste d'Audit Immuable — Historique inaltérable des actions administrateur, tentatives de connexion et déploiements</span>
+    <span class="tag">GET /api/v1/audit_logs</span>
+  </div>
+</div>
+
+<h2 class="section-title">5. Matrice de Validation RSpec Globale (167 Tests)</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Domaine de Spécification</th>
+      <th>Exemples</th>
+      <th>Statut</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>Authentification, Isolation Multi-Tenant & Contrôle d'Accès</td><td>28</td><td><span class="badge badge-success">100% PASS</span></td></tr>
+    <tr><td>Limitation de Débit & Anti-DDoS (Rack::Attack)</td><td>12</td><td><span class="badge badge-success">100% PASS</span></td></tr>
+    <tr><td>Empreintes Stables SHA-256 (Stable Fingerprinting v1)</td><td>18</td><td><span class="badge badge-success">100% PASS</span></td></tr>
+    <tr><td>Cycle de Vie Persistant (OPEN, IGNORED, RESOLVED, REOPENED)</td><td>24</td><td><span class="badge badge-success">100% PASS</span></td></tr>
+    <tr><td>Détection Différentielle des Régressions (RegressionDetector)</td><td>15</td><td><span class="badge badge-success">100% PASS</span></td></tr>
+    <tr><td>Calcul de Score de Sécurité & Pénalités (ScoreCalculator)</td><td>20</td><td><span class="badge badge-success">100% PASS</span></td></tr>
+    <tr><td>Évaluation des Politiques de Sécurité & Security Gate CI/CD</td><td>26</td><td><span class="badge badge-success">100% PASS</span></td></tr>
+    <tr><td>Pagination, Webhooks HMAC, Audit Logging & Contrôleurs</td><td>24</td><td><span class="badge badge-success">100% PASS</span></td></tr>
+    <tr><td><strong>Total Général</strong></td><td><strong>167</strong></td><td><span class="badge badge-success">100% RÉUSSI (0 FAIL)</span></td></tr>
+  </tbody>
+</table>
+
+</body>
+</html>

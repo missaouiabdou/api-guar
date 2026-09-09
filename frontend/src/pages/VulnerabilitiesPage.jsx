@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   ShieldAlert,
   AlertTriangle,
@@ -11,9 +11,16 @@ import {
   Check,
   Ban,
   RotateCcw,
-  Code
+  Code,
+  Search,
+  RefreshCw,
+  Clock,
+  FileCode,
+  History,
+  Lightbulb,
+  ExternalLink
 } from 'lucide-react'
-import { fetchVulnerabilities, updateVulnerability } from '../api/client'
+import { fetchVulnerabilities, fetchVulnerability, updateVulnerability } from '../api/client'
 import Header from '../components/layout/Header'
 
 const SEVERITY_BADGES = {
@@ -24,339 +31,480 @@ const SEVERITY_BADGES = {
   info:     'bg-gray-500/10 text-gray-400 border-gray-500/20'
 }
 
+const SCANNER_BADGES = {
+  brakeman:      'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  semgrep:       'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+  bundler_audit: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  npm_audit:     'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  gitleaks:      'bg-rose-500/10 text-rose-400 border-rose-500/20'
+}
+
+const TYPE_BADGES = {
+  sast:       'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+  dependency: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  secret:     'bg-rose-500/10 text-rose-400 border-rose-500/20',
+  container:  'bg-blue-500/10 text-blue-400 border-blue-500/20'
+}
+
 export default function VulnerabilitiesPage() {
   const [vulnerabilities, setVulnerabilities] = useState([])
   const [selectedVuln, setSelectedVuln] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
   const [severityFilter, setSeverityFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('open')
+  const [scannerFilter, setScannerFilter] = useState('all')
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [meta, setMeta] = useState(null)
+  const [actionModal, setActionModal] = useState(null) // { type: 'resolve'|'ignore'|'reopen', vuln }
   const [actionReason, setActionReason] = useState('')
+  const [actionSubmitting, setActionSubmitting] = useState(false)
 
-  const loadData = () => {
+  const loadData = useCallback(() => {
     setLoading(true)
+    setError(null)
     const params = {}
     if (severityFilter !== 'all') params.severity = severityFilter
     if (statusFilter !== 'all') params.status = statusFilter
+    if (scannerFilter !== 'all') params.scanner = scannerFilter
+    if (typeFilter !== 'all') params.scan_type = typeFilter
+    if (searchQuery.trim()) params.query = searchQuery.trim()
 
     fetchVulnerabilities(params)
       .then(res => {
         const list = res.data?.data || []
         setVulnerabilities(list)
         setMeta(res.data?.meta || null)
-        if (list.length > 0 && !selectedVuln) {
-          setSelectedVuln(list[0])
+        if (list.length > 0 && (!selectedVuln || !list.some(v => v.id === selectedVuln.id))) {
+          loadDetail(list[0].id)
+        } else if (list.length === 0) {
+          setSelectedVuln(null)
         }
       })
-      .catch(() => {
-        // Fallback demo data
-        const demo = [
-          {
-            id: 1,
-            warning_type: 'Command Injection',
-            severity: 'critical',
-            confidence: 'high',
-            message: 'Possible command injection via shell execution',
-            cwe: ['CWE-77'],
-            file: 'app/controllers/api/v1/vulnerabilities_controller.rb',
-            line: 26,
-            status: 'open',
-            code: '`ping -n 1 #{params[:ip]}`'
-          },
-          {
-            id: 2,
-            warning_type: 'Remote Code Execution',
-            severity: 'critical',
-            confidence: 'medium',
-            message: 'Marshal.load called with parameter value',
-            cwe: ['CWE-502'],
-            file: 'app/controllers/api/v1/vulnerabilities_controller.rb',
-            line: 57,
-            status: 'open',
-            code: 'Marshal.load(Base64.decode64(params[:payload]))'
-          },
-          {
-            id: 3,
-            warning_type: 'SQL Injection',
-            severity: 'high',
-            confidence: 'high',
-            message: 'Possible SQL injection in raw query string interpolation',
-            cwe: ['CWE-89'],
-            file: 'app/controllers/api/v1/vulnerabilities_controller.rb',
-            line: 16,
-            status: 'open',
-            code: 'Product.connection.select_all("SELECT * FROM products WHERE name LIKE \'#{params[:query]}\'")'
-          },
-          {
-            id: 4,
-            warning_type: 'Mass Assignment',
-            severity: 'high',
-            confidence: 'high',
-            message: 'Specify exact keys allowed for mass assignment instead of permit!',
-            cwe: ['CWE-915'],
-            file: 'app/controllers/api/v1/vulnerabilities_controller.rb',
-            line: 70,
-            status: 'open',
-            code: 'params.require(:user).permit!'
-          },
-          {
-            id: 5,
-            warning_type: 'File Access',
-            severity: 'medium',
-            confidence: 'low',
-            message: 'Parameter value used directly in file name lookup',
-            cwe: ['CWE-22'],
-            file: 'app/controllers/api/v1/vulnerabilities_controller.rb',
-            line: 41,
-            status: 'open',
-            code: 'File.read(Rails.root.join("public", params[:file]))'
-          },
-          {
-            id: 6,
-            warning_type: 'Path Traversal',
-            severity: 'medium',
-            confidence: 'high',
-            message: 'Absolute paths in Pathname#join cause full path override',
-            cwe: ['CWE-22'],
-            file: 'app/controllers/api/v1/vulnerabilities_controller.rb',
-            line: 39,
-            status: 'open',
-            code: 'Rails.root.join("public", params[:file])'
-          }
-        ]
-        setVulnerabilities(demo)
-        setSelectedVuln(demo[0])
+      .catch(err => {
+        setError(err?.response?.data?.error || 'Failed to load vulnerabilities')
+        setVulnerabilities([])
+        setSelectedVuln(null)
       })
       .finally(() => setLoading(false))
-  }
+  }, [severityFilter, statusFilter, scannerFilter, typeFilter, searchQuery])
 
   useEffect(() => {
     loadData()
-  }, [severityFilter, statusFilter])
+  }, [loadData])
 
-  const handleUpdateStatus = (status) => {
-    if (!selectedVuln) return
-    updateVulnerability(selectedVuln.id, { status, reason: actionReason })
-      .then(() => {
-        setActionReason('')
-        loadData()
-      })
-      .catch(() => {
-        // Optimistic UI update
-        setSelectedVuln(prev => ({ ...prev, status }))
-        setVulnerabilities(prev =>
-          prev.map(v => (v.id === selectedVuln.id ? { ...v, status } : v))
-        )
-      })
+  const loadDetail = (id) => {
+    setDetailLoading(true)
+    fetchVulnerability(id)
+      .then(res => setSelectedVuln(res.data?.data || res.data))
+      .catch(() => {})
+      .finally(() => setDetailLoading(false))
+  }
+
+  const handleTriageAction = async (status, reason) => {
+    if (!actionModal?.vuln) return
+    setActionSubmitting(true)
+    try {
+      const res = await updateVulnerability(actionModal.vuln.id, { status, reason })
+      const updated = res.data?.data || res.data
+      setVulnerabilities(prev => prev.map(v => v.id === updated.id ? { ...v, status: updated.status } : v))
+      if (selectedVuln?.id === updated.id) {
+        setSelectedVuln(updated)
+      }
+      setActionModal(null)
+      setActionReason('')
+    } catch (err) {
+      alert(err?.response?.data?.error || 'Failed to update vulnerability state')
+    } finally {
+      setActionSubmitting(false)
+    }
   }
 
   return (
-    <div className="space-y-6 max-w-[1600px] mx-auto pb-10">
+    <div className="space-y-6 max-w-[1600px] mx-auto pb-12">
       <Header
-        title="Security Alerts & Findings"
-        subtitle="Vulnerability lifecycle management, triaging, and remediation"
+        title="Vulnerabilities & Findings"
+        subtitle="Security flaws, SCA dependencies, and hardcoded secrets across all monitored repositories"
       />
 
-      {/* Filters Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-[#111726] border border-[#1E293B] p-4 rounded-xl">
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-gray-400" />
-          <span className="text-xs text-gray-400 font-semibold uppercase">Severity:</span>
-          {['all', 'critical', 'high', 'medium', 'low'].map(s => (
-            <button
-              key={s}
-              onClick={() => setSeverityFilter(s)}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors ${
-                severityFilter === s
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-[#1E293B]/50 text-gray-400 hover:text-white hover:bg-[#1E293B]'
-              }`}
-            >
-              {s}
-            </button>
-          ))}
+      {/* Meta Statistics Cards */}
+      {meta && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+          <div className="bg-[#111726] border border-[#1E293B] rounded-xl p-4">
+            <div className="text-gray-400 text-xs uppercase font-medium">Total Open</div>
+            <div className="text-2xl font-bold text-white mt-1">{meta.open}</div>
+          </div>
+          <div className="bg-[#111726] border border-rose-500/20 rounded-xl p-4">
+            <div className="text-rose-400 text-xs uppercase font-medium">Critical</div>
+            <div className="text-2xl font-bold text-rose-400 mt-1">{meta.by_severity?.critical || 0}</div>
+          </div>
+          <div className="bg-[#111726] border border-orange-500/20 rounded-xl p-4">
+            <div className="text-orange-400 text-xs uppercase font-medium">High</div>
+            <div className="text-2xl font-bold text-orange-400 mt-1">{meta.by_severity?.high || 0}</div>
+          </div>
+          <div className="bg-[#111726] border border-yellow-500/20 rounded-xl p-4">
+            <div className="text-yellow-400 text-xs uppercase font-medium">Medium</div>
+            <div className="text-2xl font-bold text-yellow-400 mt-1">{meta.by_severity?.medium || 0}</div>
+          </div>
+          <div className="bg-[#111726] border border-emerald-500/20 rounded-xl p-4">
+            <div className="text-emerald-400 text-xs uppercase font-medium">Resolved</div>
+            <div className="text-2xl font-bold text-emerald-400 mt-1">{meta.resolved || 0}</div>
+          </div>
+          <div className="bg-[#111726] border border-[#1E293B] rounded-xl p-4">
+            <div className="text-gray-400 text-xs uppercase font-medium">Ignored (FP)</div>
+            <div className="text-2xl font-bold text-gray-300 mt-1">{meta.ignored || 0}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Filter Bar */}
+      <div className="bg-[#111726] border border-[#1E293B] rounded-xl p-4 flex flex-wrap items-center gap-3">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Search file, message, rule ID..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-1.5 bg-[#0B0F17] border border-[#1E293B] rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          />
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400 font-semibold uppercase">Status:</span>
-          {['all', 'open', 'resolved', 'ignored'].map(st => (
-            <button
-              key={st}
-              onClick={() => setStatusFilter(st)}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold capitalize transition-colors ${
-                statusFilter === st
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-[#1E293B]/50 text-gray-400 hover:text-white hover:bg-[#1E293B]'
-              }`}
-            >
-              {st}
-            </button>
-          ))}
-        </div>
+        {/* Severity */}
+        <select
+          value={severityFilter}
+          onChange={e => setSeverityFilter(e.target.value)}
+          className="bg-[#0B0F17] border border-[#1E293B] text-gray-300 text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+        >
+          <option value="all">All Severities</option>
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+          <option value="info">Info</option>
+        </select>
+
+        {/* Status */}
+        <select
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value)}
+          className="bg-[#0B0F17] border border-[#1E293B] text-gray-300 text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+        >
+          <option value="all">All Statuses</option>
+          <option value="open">Open</option>
+          <option value="reopened">Reopened</option>
+          <option value="resolved">Resolved</option>
+          <option value="ignored">Ignored (FP)</option>
+        </select>
+
+        {/* Scanner */}
+        <select
+          value={scannerFilter}
+          onChange={e => setScannerFilter(e.target.value)}
+          className="bg-[#0B0F17] border border-[#1E293B] text-gray-300 text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+        >
+          <option value="all">All Scanners</option>
+          <option value="brakeman">Brakeman (Ruby SAST)</option>
+          <option value="semgrep">Semgrep (AST SAST)</option>
+          <option value="bundler_audit">Bundler Audit (Ruby SCA)</option>
+          <option value="npm_audit">npm Audit (JS/TS SCA)</option>
+          <option value="gitleaks">Gitleaks (Secrets)</option>
+        </select>
+
+        {/* Scan Type */}
+        <select
+          value={typeFilter}
+          onChange={e => setTypeFilter(e.target.value)}
+          className="bg-[#0B0F17] border border-[#1E293B] text-gray-300 text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+        >
+          <option value="all">All Finding Types</option>
+          <option value="sast">SAST (Code Analysis)</option>
+          <option value="dependency">Dependency (SCA)</option>
+          <option value="secret">Secret / Credentials</option>
+        </select>
+
+        <button
+          onClick={loadData}
+          className="p-2 text-gray-400 hover:text-white bg-[#0B0F17] border border-[#1E293B] rounded-lg hover:border-slate-700 transition-colors"
+          title="Refresh findings"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
-      {/* 2-Column Layout: List on Left, Detail on Right */}
+      {/* Main Content: List + Detail Split View */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left List */}
-        <div className="lg:col-span-5 space-y-3">
-          {vulnerabilities.map(v => {
+        {/* Left Column: Finding List */}
+        <div className="lg:col-span-6 space-y-3">
+          {loading && (
+            <div className="bg-[#111726] border border-[#1E293B] rounded-xl p-8 text-center text-gray-400">
+              <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-400" />
+              <p className="text-sm">Scanning & loading findings...</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-[#111726] border border-rose-500/30 rounded-xl p-6 text-center">
+              <AlertTriangle className="w-8 h-8 text-rose-400 mx-auto mb-2" />
+              <p className="text-sm font-medium text-rose-300">{error}</p>
+              <button
+                onClick={loadData}
+                className="mt-3 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-xs text-white rounded-lg transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {!loading && !error && vulnerabilities.length === 0 && (
+            <div className="bg-[#111726] border border-[#1E293B] rounded-xl p-12 text-center text-gray-400">
+              <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-3 opacity-60" />
+              <p className="text-base font-semibold text-gray-300">No vulnerabilities found</p>
+              <p className="text-xs text-gray-500 mt-1">All scanned code matches current security policies and filters.</p>
+            </div>
+          )}
+
+          {!loading && vulnerabilities.map(v => {
             const isSelected = selectedVuln?.id === v.id
+            const sevBadge = SEVERITY_BADGES[v.severity] || SEVERITY_BADGES.info
+            const scannerBadge = SCANNER_BADGES[v.scanner] || 'bg-slate-700/20 text-gray-400'
+            const typeBadge = TYPE_BADGES[v.scan_type] || 'bg-slate-700/20 text-gray-400'
+
             return (
               <div
                 key={v.id}
-                onClick={() => setSelectedVuln(v)}
-                className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                onClick={() => loadDetail(v.id)}
+                className={`bg-[#111726] border rounded-xl p-4 cursor-pointer transition-all duration-150 ${
                   isSelected
-                    ? 'bg-[#162035] border-blue-500/80 shadow-lg shadow-blue-500/5'
-                    : 'bg-[#111726] border-[#1E293B] hover:border-slate-700'
+                    ? 'border-blue-500 shadow-lg shadow-blue-500/10'
+                    : 'border-[#1E293B] hover:border-slate-700'
                 }`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="font-semibold text-white text-sm">{v.warning_type}</div>
-                  <span
-                    className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold border ${
-                      SEVERITY_BADGES[v.severity] || SEVERITY_BADGES.info
-                    }`}
-                  >
-                    {v.severity}
-                  </span>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${sevBadge}`}>
+                        {v.severity}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase border ${scannerBadge}`}>
+                        {v.scanner || 'SAST'}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase border ${typeBadge}`}>
+                        {v.scan_type || 'code'}
+                      </span>
+                      {v.status !== 'open' && (
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase ${
+                          v.status === 'resolved' ? 'bg-emerald-500/10 text-emerald-400' :
+                          v.status === 'ignored' ? 'bg-gray-500/10 text-gray-400' :
+                          'bg-amber-500/10 text-amber-400'
+                        }`}>
+                          {v.status}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-sm font-semibold text-white truncate">{v.warning_type}</h3>
+                    <p className="text-xs text-gray-400 line-clamp-2">{v.message}</p>
+                  </div>
                 </div>
-                <p className="text-xs text-gray-400 mt-1 line-clamp-2">{v.message}</p>
-                <div className="flex items-center justify-between mt-3 pt-2 border-t border-[#1E293B] text-[11px] text-gray-500 font-mono">
-                  <span className="truncate max-w-[200px]">{v.file?.split('/').pop()}:{v.line}</span>
-                  <span className={`capitalize font-sans font-medium ${
-                    v.status === 'open' ? 'text-rose-400' :
-                    v.status === 'resolved' ? 'text-emerald-400' : 'text-gray-400'
-                  }`}>
-                    &bull; {v.status}
+
+                <div className="mt-3 pt-3 border-t border-[#1E293B] flex items-center justify-between text-[11px] text-gray-500 font-mono">
+                  <span className="truncate max-w-[300px]" title={v.file}>
+                    {v.file}{v.line ? `:${v.line}` : ''}
                   </span>
+                  <span>Scan #{v.scan_id}</span>
                 </div>
               </div>
             )
           })}
-
-          {vulnerabilities.length === 0 && (
-            <div className="text-center py-16 bg-[#111726] border border-[#1E293B] rounded-xl text-gray-500">
-              <CheckCircle2 className="w-10 h-10 mx-auto mb-2 text-emerald-400 opacity-60" />
-              <p>No vulnerabilities found matching filters</p>
-            </div>
-          )}
         </div>
 
-        {/* Right Detail Pane */}
-        <div className="lg:col-span-7">
-          {selectedVuln ? (
+        {/* Right Column: Deep Detail & Triage Console */}
+        <div className="lg:col-span-6">
+          {detailLoading && (
+            <div className="bg-[#111726] border border-[#1E293B] rounded-xl p-12 text-center text-gray-400">
+              <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-400" />
+              <p className="text-sm">Loading finding details & history...</p>
+            </div>
+          )}
+
+          {!detailLoading && !selectedVuln && (
+            <div className="bg-[#111726] border border-[#1E293B] rounded-xl p-12 text-center text-gray-500">
+              <FileCode className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">Select a vulnerability from the list to view AST details, remediation, and lifecycle history.</p>
+            </div>
+          )}
+
+          {!detailLoading && selectedVuln && (
             <div className="bg-[#111726] border border-[#1E293B] rounded-xl p-6 space-y-6 sticky top-6">
-              {/* Header */}
-              <div className="flex items-start justify-between border-b border-[#1E293B] pb-4">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-xl font-bold text-white">{selectedVuln.warning_type}</h2>
-                    <span
-                      className={`px-2.5 py-0.5 rounded text-xs uppercase font-bold border ${
-                        SEVERITY_BADGES[selectedVuln.severity] || SEVERITY_BADGES.info
-                      }`}
-                    >
+              {/* Top Header */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase border ${SEVERITY_BADGES[selectedVuln.severity] || 'border-gray-500'}`}>
                       {selectedVuln.severity}
                     </span>
+                    <span className="px-2 py-0.5 bg-gray-800 text-gray-300 text-xs rounded font-mono">
+                      {selectedVuln.check_name || selectedVuln.warning_type}
+                    </span>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1 font-mono">
-                    {selectedVuln.file} : Line {selectedVuln.line}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs text-gray-500 block">Confidence</span>
-                  <span className="text-xs font-semibold text-white uppercase">
-                    {selectedVuln.confidence}
-                  </span>
-                </div>
-              </div>
-
-              {/* Message */}
-              <div>
-                <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                  Description
-                </h4>
-                <p className="text-sm text-gray-200 bg-[#0B0F19] p-3 rounded-lg border border-[#1E293B]">
-                  {selectedVuln.message}
-                </p>
-              </div>
-
-              {/* Vulnerable Code snippet */}
-              {selectedVuln.code && (
-                <div>
-                  <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                    <Code className="w-3.5 h-3.5" />
-                    <span>Vulnerable Source Code</span>
-                  </div>
-                  <pre className="bg-[#090D16] border border-[#1E293B] p-4 rounded-lg text-xs font-mono text-rose-300 overflow-x-auto">
-                    <code>{selectedVuln.code}</code>
-                  </pre>
-                </div>
-              )}
-
-              {/* Metadata */}
-              <div className="grid grid-cols-2 gap-4 text-xs">
-                <div className="bg-[#0B0F19] p-3 rounded-lg border border-[#1E293B]">
-                  <span className="text-gray-500 block">CWE Classification</span>
-                  <span className="text-white font-medium">
-                    {Array.isArray(selectedVuln.cwe) && selectedVuln.cwe.length > 0
-                      ? selectedVuln.cwe.join(', ')
-                      : 'CWE-89'}
-                  </span>
-                </div>
-                <div className="bg-[#0B0F19] p-3 rounded-lg border border-[#1E293B]">
-                  <span className="text-gray-500 block">Lifecycle Status</span>
-                  <span className="text-white font-medium capitalize">
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${
+                    selectedVuln.status === 'resolved' ? 'bg-emerald-500/20 text-emerald-300' :
+                    selectedVuln.status === 'ignored' ? 'bg-gray-500/20 text-gray-300' :
+                    selectedVuln.status === 'reopened' ? 'bg-amber-500/20 text-amber-300' :
+                    'bg-blue-500/20 text-blue-300'
+                  }`}>
                     {selectedVuln.status}
                   </span>
                 </div>
+                <h2 className="text-xl font-bold text-white">{selectedVuln.warning_type}</h2>
+                <p className="text-sm text-gray-300">{selectedVuln.message}</p>
               </div>
 
-              {/* Action Bar (Resolve / Ignore / Reopen) */}
-              <div className="pt-4 border-t border-[#1E293B] space-y-3">
-                <input
-                  type="text"
-                  placeholder="Add triage note or remediation reason (optional)..."
-                  value={actionReason}
-                  onChange={e => setActionReason(e.target.value)}
-                  className="w-full bg-[#0B0F19] border border-[#1E293B] rounded-lg px-3 py-2 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500"
-                />
+              {/* Triage Action Buttons */}
+              <div className="flex items-center gap-2 pt-2 border-t border-[#1E293B]">
+                {selectedVuln.status !== 'resolved' && (
+                  <button
+                    onClick={() => setActionModal({ type: 'resolve', vuln: selectedVuln })}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition-colors"
+                  >
+                    <Check className="w-3.5 h-3.5" /> Mark Resolved
+                  </button>
+                )}
+                {selectedVuln.status !== 'ignored' && (
+                  <button
+                    onClick={() => setActionModal({ type: 'ignore', vuln: selectedVuln })}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg text-xs font-medium transition-colors"
+                  >
+                    <Ban className="w-3.5 h-3.5" /> Ignore (False Positive)
+                  </button>
+                )}
+                {selectedVuln.status !== 'open' && (
+                  <button
+                    onClick={() => handleTriageAction('open', 'Manually reopened')}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-medium transition-colors"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" /> Reopen
+                  </button>
+                )}
+              </div>
 
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => handleUpdateStatus('resolved')}
-                    className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-4 rounded-lg text-xs transition-colors"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    Mark Resolved
-                  </button>
-                  <button
-                    onClick={() => handleUpdateStatus('ignored')}
-                    className="flex-1 flex items-center justify-center gap-2 bg-[#1E293B] hover:bg-[#28354D] text-gray-300 font-semibold py-2 px-4 rounded-lg text-xs transition-colors border border-slate-700"
-                  >
-                    <Ban className="w-3.5 h-3.5" />
-                    Ignore / False Positive
-                  </button>
-                  {selectedVuln.status !== 'open' && (
-                    <button
-                      onClick={() => handleUpdateStatus('open')}
-                      className="flex items-center justify-center gap-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 font-semibold py-2 px-3 rounded-lg text-xs transition-colors border border-rose-500/30"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      Reopen
-                    </button>
-                  )}
+              {/* Location & Code Snippet */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-gray-400 font-medium">
+                  <span>Affected File & Context</span>
+                  <span className="font-mono text-gray-500">
+                    {selectedVuln.file}{selectedVuln.line ? `:${selectedVuln.line}` : ''}
+                  </span>
+                </div>
+                {selectedVuln.code ? (
+                  <div className="bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 font-mono text-xs text-gray-300 overflow-x-auto whitespace-pre">
+                    <code>{selectedVuln.code}</code>
+                  </div>
+                ) : (
+                  <div className="bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 text-xs text-gray-500 italic">
+                    No inline code snippet available for this finding.
+                  </div>
+                )}
+              </div>
+
+              {/* Remediation Guidance */}
+              {selectedVuln.remediation && (
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-blue-400 font-semibold text-xs uppercase tracking-wider">
+                    <Lightbulb className="w-4 h-4" /> Recommended Remediation
+                  </div>
+                  <p className="text-xs text-blue-200 whitespace-pre-line leading-relaxed">
+                    {selectedVuln.remediation}
+                  </p>
+                </div>
+              )}
+
+              {/* Fingerprint & Identifiers */}
+              <div className="space-y-1.5 text-xs">
+                <div className="text-gray-400 font-medium">Deterministic Fingerprint (GR-201 / GR-304)</div>
+                <div className="bg-[#0B0F17] border border-[#1E293B] rounded px-2.5 py-1.5 font-mono text-[11px] text-gray-400 break-all select-all">
+                  {selectedVuln.fingerprint}
                 </div>
               </div>
-            </div>
-          ) : (
-            <div className="h-full flex items-center justify-center p-12 text-gray-500 bg-[#111726] border border-[#1E293B] rounded-xl">
-              Select a vulnerability to inspect details
+
+              {/* Lifecycle History Timeline */}
+              {selectedVuln.lifecycle_history?.length > 0 && (
+                <div className="space-y-3 pt-3 border-t border-[#1E293B]">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    <History className="w-3.5 h-3.5" /> Lifecycle Audit History
+                  </div>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {selectedVuln.lifecycle_history.map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-xs bg-[#0B0F17] border border-[#1E293B] rounded p-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            item.status === 'resolved' ? 'bg-emerald-500/10 text-emerald-400' :
+                            item.status === 'ignored' ? 'bg-gray-500/10 text-gray-400' :
+                            item.status === 'reopened' ? 'bg-amber-500/10 text-amber-400' :
+                            'bg-blue-500/10 text-blue-400'
+                          }`}>
+                            {item.status}
+                          </span>
+                          <span className="text-gray-300 font-mono">Scan #{item.scan_id}</span>
+                          {item.commit_sha && (
+                            <span className="text-gray-500 font-mono text-[10px]">({item.commit_sha.slice(0, 7)})</span>
+                          )}
+                        </div>
+                        <span className="text-gray-500 text-[11px]">
+                          {item.scanned_at ? new Date(item.scanned_at).toLocaleDateString() : '—'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
+
+      {/* Modal for Reason Input */}
+      {actionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-[#111726] border border-[#1E293B] rounded-xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+            <h3 className="text-lg font-bold text-white">
+              {actionModal.type === 'resolve' ? 'Resolve Vulnerability' : 'Ignore as False Positive'}
+            </h3>
+            <p className="text-xs text-gray-400">
+              {actionModal.type === 'resolve'
+                ? 'Specify how this vulnerability was addressed (e.g. patched in commit abc, input validated).'
+                : 'Provide justification for ignoring this security finding so it carries forward in future scans.'}
+            </p>
+            <textarea
+              rows="3"
+              placeholder="Enter resolution notes / rationale..."
+              value={actionReason}
+              onChange={e => setActionReason(e.target.value)}
+              className="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+            />
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setActionModal(null)}
+                className="px-4 py-2 text-xs font-medium text-gray-400 hover:text-white bg-transparent rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={actionSubmitting}
+                onClick={() => handleTriageAction(actionModal.type === 'resolve' ? 'resolved' : 'ignored', actionReason)}
+                className={`px-4 py-2 text-xs font-semibold text-white rounded-lg transition-colors ${
+                  actionModal.type === 'resolve' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-gray-700 hover:bg-gray-600'
+                }`}
+              >
+                {actionSubmitting ? 'Saving...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

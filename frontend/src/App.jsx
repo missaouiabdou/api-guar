@@ -7,6 +7,10 @@ import ProjectsPage from './pages/ProjectsPage'
 import SecurityPage from './pages/SecurityPage'
 import VulnerabilitiesPage from './pages/VulnerabilitiesPage'
 import ScansPage from './pages/ScansPage'
+import EventsPage from './pages/EventsPage'
+import WebhooksPage from './pages/WebhooksPage'
+import AuditLogsPage from './pages/AuditLogsPage'
+import SettingsPage from './pages/SettingsPage'
 import { useAuth } from './auth/AuthContext'
 
 // Redirects to /login if not authenticated
@@ -65,12 +69,12 @@ export default function App() {
                 <Route path="/security" element={<SecurityPage />} />
                 <Route path="/vulnerabilities" element={<VulnerabilitiesPage />} />
                 <Route path="/scans" element={<ScansPage />} />
-                <Route path="/webhooks" element={<GenericPage title="Webhook Management" description="Monitor and configure GitHub and GitLab webhook endpoints" />} />
-                <Route path="/events" element={<GenericPage title="Event Logs" description="Real-time delivery logs and signature verification audits" />} />
+                <Route path="/webhooks" element={<WebhooksPage />} />
+                <Route path="/events" element={<EventsPage />} />
                 <Route path="/deployments" element={<GenericPage title="Deployments" description="CI/CD deployment runs and release security gates" />} />
                 <Route path="/pipelines" element={<GenericPage title="Pipelines" description="Automated security scanning pipeline orchestration" />} />
-                <Route path="/audit" element={<GenericPage title="Audit Logs" description="System compliance and user action trail" />} />
-                <Route path="/settings" element={<GenericPage title="Settings" description="Organization settings, API keys, and notification channels" />} />
+                <Route path="/audit" element={<AuditLogsPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </Layout>

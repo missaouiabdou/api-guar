@@ -21,9 +21,9 @@ RSpec.describe Security::ScoreCalculator do
     context 'with critical vulnerabilities' do
       before { 2.times { add_vuln('critical') } }
 
-      it 'deducts 25 per critical' do
+      it 'deducts 15 per critical' do
         result = described_class.call(scan)
-        expect(result[:score]).to eq(50)
+        expect(result[:score]).to eq(70)
         expect(result[:risk_level]).to eq('medium')
       end
     end
@@ -35,11 +35,11 @@ RSpec.describe Security::ScoreCalculator do
         add_vuln('low')
       end
 
-      it 'returns score 54' do
+      it 'returns score 77' do
         result = described_class.call(scan)
-        # 4×10 + 5 + 1 = 46 penalty → score 54
-        expect(result[:score]).to eq(54)
-        expect(result[:risk_level]).to eq('high')
+        # 4×5 + 2 + 1 = 23 penalty → score 77
+        expect(result[:score]).to eq(77)
+        expect(result[:risk_level]).to eq('medium')
       end
     end
 
@@ -52,18 +52,59 @@ RSpec.describe Security::ScoreCalculator do
 
       it 'only penalizes open vulnerabilities' do
         result = described_class.call(scan)
-        # Only 1 critical open → -25 → score 75
-        expect(result[:score]).to eq(75)
+        # Only 1 critical open → -15 → score 85
+        expect(result[:score]).to eq(85)
         expect(result[:risk_level]).to eq('medium')
       end
     end
 
-    context 'score floor' do
-      before { 10.times { add_vuln('critical') } }
-
-      it 'never goes below 0' do
+    context 'penalty caps per severity' do
+      it 'caps critical penalty at 60 (10 criticals → score 40, not a saturated 0)' do
+        10.times { add_vuln('critical') }
         result = described_class.call(scan)
+        expect(result[:breakdown]['critical']).to eq(count: 10, penalty: 60)
+        expect(result[:score]).to eq(40)
+      end
+
+      it 'caps high penalty at 25' do
+        9.times { add_vuln('high') }
+        result = described_class.call(scan)
+        expect(result[:breakdown]['high']).to eq(count: 9, penalty: 25)
+        expect(result[:score]).to eq(75)
+      end
+    end
+
+    context 'score floor' do
+      before do
+        10.times { add_vuln('critical') }
+        10.times { add_vuln('high') }
+        10.times { add_vuln('medium') }
+        10.times { add_vuln('low') }
+      end
+
+      it 'never goes below 0 (all caps reached = 100 penalty)' do
+        result = described_class.call(scan)
+        expect(result[:penalty]).to eq(100)
         expect(result[:score]).to eq(0)
+      end
+    end
+
+    context 'with stored scan counts (scan-time snapshot)' do
+      let(:scan) do
+        create(:scan, project: project, status: 'completed',
+                      critical_count: 2, high_count: 2, medium_count: 2)
+      end
+
+      before do
+        # Vuln triaged as resolved AFTER the scan — must not rewrite the score
+        add_vuln('critical', status: 'resolved')
+      end
+
+      it 'scores from the stored counts, not the live triage state' do
+        result = described_class.call(scan)
+        # 2×15 + 2×5 + 2×2 = 44 penalty → score 56
+        expect(result[:score]).to eq(56)
+        expect(result[:breakdown]['critical'][:count]).to eq(2)
       end
     end
   end

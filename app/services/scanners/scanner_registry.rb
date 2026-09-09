@@ -20,18 +20,14 @@ module Scanners
       { scanner: "Scanners::BrakemanScanner", languages: ["ruby"], scan_type: :sast },
 
       # Semgrep: multi-language SAST — runs on every project
-      { scanner: "Scanners::SemgrepScanner",  languages: :any,    scan_type: :sast }
+      { scanner: "Scanners::SemgrepScanner",  languages: :any,    scan_type: :sast },
 
-      # ── Dependency (Sprint 5 — next sprint) ──────────────────────────
-      # { scanner: "Scanners::BundlerAuditScanner", languages: ["ruby"],                     scan_type: :dependency },
-      # { scanner: "Scanners::NpmAuditScanner",     languages: ["javascript","typescript"],  scan_type: :dependency },
-      # { scanner: "Scanners::PipAuditScanner",     languages: ["python"],                   scan_type: :dependency },
+      # ── Dependency Scanning (SCA) ────────────────────────────────────
+      { scanner: "Scanners::BundlerAuditScanner", languages: ["ruby"], scan_type: :dependency },
+      { scanner: "Scanners::NpmAuditScanner",     languages: ["javascript", "typescript"], scan_type: :dependency },
 
-      # ── Secret Detection (Sprint 6) ───────────────────────────────────
-      # { scanner: "Scanners::GitleaksScanner", languages: :any, scan_type: :secret },
-
-      # ── Container Security (Sprint 7) ─────────────────────────────────
-      # { scanner: "Scanners::TrivyScanner", languages: :any, scan_type: :container }
+      # ── Secret Detection ─────────────────────────────────────────────
+      { scanner: "Scanners::GitleaksScanner", languages: :any, scan_type: :secret }
     ].freeze
 
     # Returns an array of scanner CLASS objects applicable for the given languages.

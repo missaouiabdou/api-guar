@@ -10,7 +10,9 @@ RSpec.describe "Api::V1::Projects", type: :request do
     it "returns 200 with user's projects" do
       get "/api/v1/projects", headers: headers
       expect(response).to have_http_status(:ok)
-      expect(JSON.parse(response.body).size).to eq(1)
+      json = JSON.parse(response.body)
+      expect(json["data"].size).to eq(1)
+      expect(json["pagination"]).to include("page" => 1, "per_page" => 25, "total" => 1, "total_pages" => 1)
     end
 
     it "returns 401 without token" do

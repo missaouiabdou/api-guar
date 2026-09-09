@@ -92,6 +92,8 @@ export default function DashboardPage() {
   const webhookActivity = webhooks?.activity_24h || []
   const recentWebhookEvents = webhooks?.recent_events || []
 
+  const gateStatus = security?.gate_status
+
   const pipelineTotal = (pipelines?.breakdown?.success ?? 0) +
     (pipelines?.breakdown?.failed ?? 0) +
     (pipelines?.breakdown?.running ?? 0) +
@@ -114,6 +116,63 @@ export default function DashboardPage() {
         subtitle="Overview of your DevSecOps platform"
       />
 
+      {/* DevSecOps Status Banner */}
+      <div className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+        gateStatus === 'PASS'
+          ? 'bg-emerald-500/5 border-emerald-500/30 text-emerald-400'
+          : gateStatus === 'WARNING'
+            ? 'bg-amber-500/5 border-amber-500/30 text-amber-400'
+            : gateStatus === 'PENDING' || !gateStatus
+              ? 'bg-[#111726] border-[#1E293B] text-gray-400'
+              : 'bg-rose-500/5 border-rose-500/30 text-rose-400'
+      }`}>
+        <div className="flex items-center gap-3.5">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+            gateStatus === 'PASS'
+              ? 'bg-emerald-500/10 text-emerald-400'
+              : gateStatus === 'WARNING'
+                ? 'bg-amber-500/10 text-amber-400'
+                : gateStatus === 'PENDING' || !gateStatus
+                  ? 'bg-gray-500/10 text-gray-400'
+                  : 'bg-rose-500/10 text-rose-400'
+          }`}>
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-white tracking-tight">
+                CI/CD Release Gate: {gateStatus ?? 'PENDING'}
+              </span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-white/10 text-white">
+                Risk: {security?.risk_level || 'unknown'}
+              </span>
+            </div>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {security?.regression
+                ? '⚠️ Security regression detected in latest build.'
+                : gateStatus === 'PENDING' || !gateStatus
+                  ? 'No completed scans yet — trigger a scan to establish a security baseline.'
+                  : 'No security regressions detected in the latest completed scan.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="bg-[#0B0F19] border border-[#1E293B] rounded-lg px-3 py-1.5 text-center">
+            <span className="text-[10px] text-gray-500 block">Security Score</span>
+            <span className="text-sm font-bold text-white">
+              {security?.score != null ? `${security.score}/100` : '—'}
+            </span>
+          </div>
+          <a
+            href="/security"
+            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition-colors"
+          >
+            Inspect Security Gate &rarr;
+          </a>
+        </div>
+      </div>
+
       {/* ── 8 Stat / Metrics Cards Grid ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Total Projects */}
@@ -126,9 +185,11 @@ export default function DashboardPage() {
           </div>
           <div className="mt-3">
             <div className="text-2xl font-bold text-white tracking-tight">{projects?.total ?? 0}</div>
-            <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-400 mt-1">
-              <ArrowUpRight className="w-3 h-3" />
-              <span>+{projects?.change_percent ?? 0}% this week</span>
+            <div className={`flex items-center gap-1 text-[11px] font-medium mt-1 ${(projects?.change_percent ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {(projects?.change_percent ?? 0) >= 0
+                ? <ArrowUpRight className="w-3 h-3" />
+                : <ArrowDownRight className="w-3 h-3" />}
+              <span>{projects?.change_percent ?? 0}% this week</span>
             </div>
           </div>
         </div>
@@ -143,9 +204,11 @@ export default function DashboardPage() {
           </div>
           <div className="mt-3">
             <div className="text-2xl font-bold text-white tracking-tight">{repositories?.total ?? 0}</div>
-            <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-400 mt-1">
-              <ArrowUpRight className="w-3 h-3" />
-              <span>+{repositories?.change_percent ?? 0}% no change</span>
+            <div className={`flex items-center gap-1 text-[11px] font-medium mt-1 ${(repositories?.change_percent ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {(repositories?.change_percent ?? 0) >= 0
+                ? <ArrowUpRight className="w-3 h-3" />
+                : <ArrowDownRight className="w-3 h-3" />}
+              <span>{repositories?.change_percent ?? 0}% this week</span>
             </div>
           </div>
         </div>
@@ -161,11 +224,8 @@ export default function DashboardPage() {
           </div>
           <div className="mt-3">
             <div className="text-2xl font-bold text-white tracking-tight">{deployments?.today ?? 0}</div>
-            <div className={`flex items-center gap-1 text-[11px] font-medium mt-1 ${(deployments?.change_percent ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {(deployments?.change_percent ?? 0) >= 0
-                ? <ArrowUpRight className="w-3 h-3" />
-                : <ArrowDownRight className="w-3 h-3" />}
-              <span>{deployments?.change_percent ?? 0}% vs yesterday</span>
+            <div className="flex items-center gap-1 text-[11px] font-medium text-gray-400 mt-1">
+              <span>{deployments?.scans_today ?? 0} security scans run today</span>
             </div>
           </div>
         </div>
@@ -267,8 +327,8 @@ export default function DashboardPage() {
         <div className="lg:col-span-2 bg-[#111726] border border-[#1E293B] rounded-xl p-5 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-base font-semibold text-white">Deployments</h3>
-              <p className="text-xs text-gray-500">Last 7 days</p>
+              <h3 className="text-base font-semibold text-white">Pipeline & Scan Activity</h3>
+              <p className="text-xs text-gray-500">Security scans and executions (last 7 days)</p>
             </div>
             <div className="flex items-center gap-4 text-xs">
               <div className="flex items-center gap-1.5 text-gray-300">

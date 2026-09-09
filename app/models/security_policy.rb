@@ -9,6 +9,8 @@ class SecurityPolicy < ApplicationRecord
   validates :minimum_security_score, numericality: { only_integer: true, in: 0..100 }
   validates :maximum_critical,       numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :maximum_high,           numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validates :fail_on_secrets,        inclusion: { in: [true, false] }
+  validates :fail_on_regressions,    inclusion: { in: [true, false] }
 
   # ── Scopes ────────────────────────────────────────────────────────────────
 

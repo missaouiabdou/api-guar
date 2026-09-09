@@ -140,7 +140,7 @@ module Security
       @open_project_vulns ||= Vulnerability
                                 .joins(:scan)
                                 .where(scans: { project_id: project.id })
-                                .open
+                                .active
     end
 
     def completed_scans

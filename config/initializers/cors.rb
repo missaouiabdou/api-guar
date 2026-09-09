@@ -16,11 +16,19 @@
 # end
 Rails.application.config.middleware.insert_before 0, Rack::Cors do
   allow do
-    origins "http://localhost:3001",
-            "http://127.0.0.1:3001",
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-            "http://localhost:3000"
+    custom_origins = ENV['CORS_ALLOWED_ORIGINS'].to_s.split(',').map(&:strip).reject(&:empty?)
+    default_origins = [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://127.0.0.1:3000",
+      "http://127.0.0.1:3001",
+      "http://127.0.0.1:5173",
+      "http://127.0.0.1:5174"
+    ]
+
+    origins(*(custom_origins.presence || default_origins))
 
     resource "*",
              headers: :any,

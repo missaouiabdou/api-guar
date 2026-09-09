@@ -37,17 +37,34 @@ module Scans
     attr_reader :scan, :timeout
 
     def github_repo
-      @github_repo ||= scan.project.github_repo ||
-                       raise("Project##{scan.project_id} has no github_repo set")
+      @github_repo ||= begin
+        repo = scan.project.github_repo.presence
+        return repo if repo.present?
+
+        url = scan.project.repository_url.to_s
+        if url =~ %r{github\.com[:/]([^/]+/[^/.]+?)(?:\.git)?\z}i || url =~ %r{github\.com/([^/]+/[^/]+)}i
+          $1
+        else
+          raise("Project##{scan.project_id} has no github_repo set")
+        end
+      end
     end
 
     def commit_sha
       scan.commit_sha || raise("Scan##{scan.id} has no commit_sha")
     end
 
+    def target_ref
+      if commit_sha.present? && commit_sha != "HEAD"
+        commit_sha
+      else
+        scan.branch.presence || scan.project.default_branch.presence || "main"
+      end
+    end
+
     def tarball_url
       @tarball_url ||= URI.parse(
-        "https://api.github.com/repos/#{github_repo}/tarball/#{commit_sha}"
+        "https://api.github.com/repos/#{github_repo}/tarball/#{target_ref}"
       )
     end
 

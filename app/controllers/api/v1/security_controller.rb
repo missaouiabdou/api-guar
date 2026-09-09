@@ -50,6 +50,43 @@ module Api
         previous_result = prev ? Security::ScoreCalculator.call(prev) : nil
         regression      = Security::RegressionDetector.call(latest, prev)
 
+        active_vulns = latest.vulnerabilities.active
+        dep_vulns    = active_vulns.where("scan_type IN ('sca', 'dependency') OR scanner ILIKE '%audit%'")
+        secret_vulns = active_vulns.where("scan_type = 'secret' OR scanner ILIKE '%gitleaks%'")
+        cont_vulns   = active_vulns.where("scan_type = 'container' OR scanner ILIKE '%container%' OR file ILIKE '%Dockerfile%'")
+        code_vulns   = active_vulns.where("scan_type = 'sast' OR scanner IN ('brakeman', 'semgrep')")
+
+        calc_cat_score = lambda do |rel|
+          crit = rel.where(severity: "critical").count
+          hi   = rel.where(severity: "high").count
+          med  = rel.where(severity: "medium").count
+          lo   = rel.where(severity: "low").count
+          [ 100 - (crit * 25 + hi * 10 + med * 5 + lo * 1), 0 ].max
+        end
+
+        categories = {
+          dependency: {
+            score:          calc_cat_score.call(dep_vulns),
+            issues_count:   dep_vulns.count,
+            critical_count: dep_vulns.where(severity: "critical").count
+          },
+          secrets: {
+            score:          calc_cat_score.call(secret_vulns),
+            issues_count:   secret_vulns.count,
+            critical_count: secret_vulns.where(severity: "critical").count
+          },
+          container: {
+            score:          calc_cat_score.call(cont_vulns),
+            issues_count:   cont_vulns.count,
+            critical_count: cont_vulns.where(severity: "critical").count
+          },
+          code: {
+            score:          calc_cat_score.call(code_vulns),
+            issues_count:   code_vulns.count,
+            critical_count: code_vulns.where(severity: "critical").count
+          }
+        }
+
         render json: {
           project_id:   @project.id,
           project_name: @project.name,
@@ -68,6 +105,7 @@ module Api
               low:      latest.low_count
             }
           },
+          categories: categories,
           trend:  build_trend(latest_result, previous_result, prev),
           regression: regression,
           scan_history: scans.first(5).map { |s|
@@ -168,20 +206,58 @@ module Api
         blocking_failed = evaluations.any? { |ev| !ev.passed && ev.security_policy&.block_on_failure }
 
         status = compute_gate_status(score_data[:score], policy_passed, blocking_failed)
+        decision = status == "failed" ? "FAIL" : (status == "warning" ? "WARNING" : "PASS")
 
-        open_by_severity = @scan.vulnerabilities.open.group(:severity).count
+        # Same source as the score (scan-time snapshot) so the gate numbers
+        # can never contradict the score card
+        breakdown     = score_data[:breakdown]
+        secrets_count = @scan.vulnerabilities.active.where(scan_type: "secret").count
+        regression    = detect_regression(@scan)
+
+        # Build developer-friendly explanations
+        reasons = []
+        if score_data[:score] < 40
+          reasons << "Security score #{score_data[:score]}/100 is critically low (minimum acceptable: 40)"
+        elsif score_data[:score] < 70
+          reasons << "Security score #{score_data[:score]}/100 is below the recommended threshold of 70"
+        end
+
+        evaluations.reject(&:passed).each do |ev|
+          Array(ev.violations).each do |v|
+            reasons << "#{ev.security_policy&.name || 'Policy'}: #{v['message'] || v[:message]}"
+          end
+        end
+
+        summary = if decision == "FAIL"
+                    "SECURITY GATE: FAILED — #{reasons.first || 'Blocking security policy violated'}"
+                  elsif decision == "WARNING"
+                    "SECURITY GATE: WARNING — #{reasons.first || 'Review recommended security findings'}"
+                  else
+                    "SECURITY GATE: PASSED — All security policies satisfied (Score #{score_data[:score]}/100)"
+                  end
+
+        blocking_vulns = @scan.vulnerabilities.active
+                              .where(severity: %w[critical high])
+                              .or(@scan.vulnerabilities.active.where(scan_type: "secret"))
+                              .limit(10)
 
         render json: {
-          scan_id:        @scan.id,
-          status:         status,
-          security_score: score_data[:score],
-          risk_level:     score_data[:risk_level],
-          policy_passed:  policy_passed,
-          critical:       open_by_severity["critical"] || 0,
-          high:           open_by_severity["high"]     || 0,
-          medium:         open_by_severity["medium"]   || 0,
-          low:            open_by_severity["low"]      || 0,
-          policies:       evaluations.map { |ev| serialize_policy_evaluation(ev) }
+          scan_id:         @scan.id,
+          status:          status,
+          decision:        decision,
+          summary:         summary,
+          reasons:         reasons,
+          security_score:  score_data[:score],
+          risk_level:      score_data[:risk_level],
+          policy_passed:   policy_passed,
+          critical:        breakdown["critical"][:count],
+          high:            breakdown["high"][:count],
+          medium:          breakdown["medium"][:count],
+          low:             breakdown["low"][:count],
+          secrets_count:   secrets_count,
+          regression:      regression,
+          blocking_vulnerabilities: blocking_vulns.map { |v| serialize_recent_vuln(v) },
+          policies:        evaluations.map { |ev| serialize_policy_evaluation(ev) }
         }
       end
 
@@ -202,7 +278,9 @@ module Api
       end
 
       def set_project
-        @project = current_user.projects.find(params[:project_id])
+        # Accept both :project_id (nested resources) and :id (member routes).
+        project_id = params[:project_id] || params[:id]
+        @project = current_user.projects.find(project_id)
       rescue ActiveRecord::RecordNotFound
         render json: { error: "Project not found" }, status: :not_found
       end

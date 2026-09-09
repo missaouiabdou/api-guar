@@ -6,6 +6,8 @@ FactoryBot.define do
     minimum_security_score { 70 }
     maximum_critical       { 0 }
     maximum_high           { 5 }
+    fail_on_secrets        { false }
+    fail_on_regressions    { false }
     enabled                { true }
     block_on_failure       { false }
   end

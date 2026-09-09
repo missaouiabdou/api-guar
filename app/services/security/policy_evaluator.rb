@@ -17,7 +17,7 @@
 module Security
   class PolicyEvaluator
     # Supported rules in evaluation order
-    RULES = %i[minimum_security_score maximum_critical maximum_high].freeze
+    RULES = %i[minimum_security_score maximum_critical maximum_high fail_on_secrets fail_on_regressions].freeze
 
     def self.call(scan:, policy:, persist: false)
       new(scan: scan, policy: policy, persist: persist).call
@@ -98,6 +98,36 @@ module Security
       }
     end
 
+    # Rule: fail on any hardcoded secrets detected
+    def check_fail_on_secrets
+      return nil unless policy.respond_to?(:fail_on_secrets) && policy.fail_on_secrets
+
+      actual = open_vulnerabilities.where(scan_type: "secret").count
+      return nil if actual.zero?
+
+      {
+        rule:     "fail_on_secrets",
+        expected: 0,
+        actual:   actual,
+        message:  "#{actual} hardcoded secret(s) detected with 'fail_on_secrets' policy enabled"
+      }
+    end
+
+    # Rule: fail on any security score regression
+    def check_fail_on_regressions
+      return nil unless policy.respond_to?(:fail_on_regressions) && policy.fail_on_regressions
+
+      reg = regression_data
+      return nil unless reg && reg[:regression]
+
+      {
+        rule:     "fail_on_regressions",
+        expected: "no_regression",
+        actual:   "regression_detected",
+        message:  reg[:message]
+      }
+    end
+
     # ── Persistence (GR-603) ──────────────────────────────────────────────
 
     # Uses find_or_initialize_by for idempotent, transaction-safe persistence.
@@ -123,7 +153,17 @@ module Security
     end
 
     def open_vulnerabilities
-      @open_vulnerabilities ||= scan.vulnerabilities.open
+      @open_vulnerabilities ||= scan.vulnerabilities.active
+    end
+
+    def regression_data
+      @regression_data ||= begin
+        prev = scan.project.scans.completed
+                   .where("id < ?", scan.id)
+                   .order(id: :desc)
+                   .first
+        Security::RegressionDetector.call(scan, prev)
+      end
     end
   end
 end

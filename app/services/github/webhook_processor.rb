@@ -53,6 +53,18 @@ module Github
       webhook_event.mark_processed!(scan)
       ScanJob.perform_later(scan.id)
 
+      AuditService.log(
+        actor:         "github_webhook",
+        action:        "webhook_received",
+        resource_type: "Scan",
+        resource_id:   scan.id,
+        metadata:      {
+          event_type:  request.event_type,
+          repository:  request.repository,
+          delivery_id: request.delivery_id
+        }
+      )
+
       scan
     rescue ActiveRecord::RecordInvalid => e
       webhook_event&.mark_failed!(e)

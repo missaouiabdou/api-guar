@@ -34,12 +34,13 @@ Rails.application.routes.draw do
 
         # Sprint 2 — Security Policies (GR-601)
         resources :security_policies, only: [:index, :create]
+        resources :scans, only: [:index, :create]
       end
 
       # Sprint 2 — Security Policies (member routes / GR-601)
       resources :security_policies, only: [:show, :update, :destroy]
 
-      resources :scans, only: [:index, :show] do
+      resources :scans, only: [:index, :show, :create] do
         resources :vulnerabilities, only: [:index]
         get :security_summary, on: :member, to: "security#scan_summary"
 
@@ -50,6 +51,13 @@ Rails.application.routes.draw do
         get :gate, on: :member, to: "security#gate"
       end
       resources :vulnerabilities, only: [:index, :show, :update]
+      resources :webhook_events,  only: [:index, :show]
+      resources :webhooks,        only: [:index, :create, :destroy]
+      resources :audit_logs,      only: [:index]
+      resource  :profile,         only: [:show, :update]
+
+      # Priority 10: Production Health Check (Unauthenticated)
+      get "health", to: "health#show"
 
       # Webhooks GitHub (Phase 2)
       namespace :webhooks do
@@ -58,6 +66,6 @@ Rails.application.routes.draw do
     end
   end
 
-  # Health check — inchangé
+  # Health check — Rails default
   get "up" => "rails/health#show", as: :rails_health_check
 end

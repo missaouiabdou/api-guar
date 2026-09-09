@@ -4,11 +4,28 @@ RSpec.describe ScanJob, type: :job do
   let!(:scan) { create(:scan) }
 
   it "marks scans completed when scanner succeeds" do
-    allow_any_instance_of(Scans::Scanners::BrakemanScanner).to receive(:call).and_return(
+    vuln_critical = Scanners::ScanResult::Vulnerability.new(
+      warning_type: "Command Injection", message: "command injection", severity: "critical",
+      confidence: "high", file: "a.rb", line: 1, fingerprint: "crit_1", scanner: "brakeman", scan_type: "sast"
+    )
+    vuln_high1 = Scanners::ScanResult::Vulnerability.new(
+      warning_type: "SQL Injection", message: "sqli", severity: "high",
+      confidence: "high", file: "b.rb", line: 2, fingerprint: "high_1", scanner: "brakeman", scan_type: "sast"
+    )
+    vuln_high2 = Scanners::ScanResult::Vulnerability.new(
+      warning_type: "SQL Injection", message: "sqli", severity: "high",
+      confidence: "high", file: "c.rb", line: 3, fingerprint: "high_2", scanner: "brakeman", scan_type: "sast"
+    )
+    scan_result = Scanners::ScanResult.new(
+      scanner: "brakeman", scan_type: "sast", languages: ["ruby"],
+      vulnerabilities: [vuln_critical, vuln_high1, vuln_high2]
+    )
+
+    allow_any_instance_of(Scans::Executor).to receive(:call).and_return(
       {
-        raw_payload: { "warnings" => [] },
-        parsed_data: { "warnings" => [] },
-        severities: { "critical" => 1, "high" => 2, "medium" => 0, "low" => 0, "info" => 0 }
+        critical: 1, high: 2, medium: 0, low: 0, info: 0,
+        languages: ["ruby"], scanner: "brakeman", raw_report: {},
+        scan_results: [scan_result]
       }
     )
 

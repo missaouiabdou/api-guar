@@ -59,14 +59,20 @@ module Security
       @previous_fingerprints ||= previous_scan.vulnerabilities.pluck(:fingerprint).to_set
     end
 
+    # Triaged false positives (ignored) are neither "new" nor "fixed" —
+    # they are deliberate decisions, not regressions.
     def new_vulnerabilities
       new_fps = current_fingerprints - previous_fingerprints
-      current_scan.vulnerabilities.where(fingerprint: new_fps.to_a)
+      current_scan.vulnerabilities
+                  .where(fingerprint: new_fps.to_a)
+                  .where.not(status: "ignored")
     end
 
     def fixed_vulnerabilities
       fixed_fps = previous_fingerprints - current_fingerprints
-      previous_scan.vulnerabilities.where(fingerprint: fixed_fps.to_a)
+      previous_scan.vulnerabilities
+                   .where(fingerprint: fixed_fps.to_a)
+                   .where.not(status: "ignored")
     end
 
     def format_change(delta)

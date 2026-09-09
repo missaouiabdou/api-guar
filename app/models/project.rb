@@ -3,6 +3,7 @@ class Project < ApplicationRecord
 
   # Relations
   has_many :scans,             dependent: :destroy
+  has_many :vulnerabilities,   through: :scans
   has_many :repositories,      dependent: :nullify
   has_many :security_policies, dependent: :destroy
 
